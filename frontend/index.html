@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Asignados · Secretaría Académica ECYS</title>
+<link rel="stylesheet" href="/styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='3' height='7' x='1' y='8' rx='1' fill='%232a78d6'/%3E%3Crect width='3' height='11' x='6' y='4' rx='1' fill='%232a78d6'/%3E%3Crect width='3' height='14' x='11' y='1' rx='1' fill='%232a78d6'/%3E%3C/svg%3E">
+</head>
+<body>
+
+<header class="top">
+  <div class="brand">
+    <h1>Dashboard de Asignados</h1>
+    <span class="sub">Secretaría Académica · Escuela de Ingeniería en Ciencias y Sistemas · FIUSAC</span>
+  </div>
+
+  <!-- R1-12 · procedencia del dato siempre visible -->
+  <p class="provenance" id="provenance">
+    <span class="loading">Cargando snapshot…</span>
+  </p>
+
+  <!-- R1-02 · filtros comunes a todo el tablero -->
+  <div class="filters" id="filters">
+    <div class="field">
+      <label for="f-snapshot">Snapshot</label>
+      <select id="f-snapshot" data-filter="snapshot_id"></select>
+    </div>
+    <div class="field">
+      <label for="f-tipo">Tipo</label>
+      <select id="f-tipo" data-filter="tipo"></select>
+    </div>
+    <div class="field">
+      <label for="f-area">Área académica</label>
+      <select id="f-area" data-filter="area"></select>
+    </div>
+    <div class="field">
+      <label for="f-jornada">Jornada</label>
+      <select id="f-jornada" data-filter="jornada"></select>
+    </div>
+    <div class="field">
+      <label for="f-modalidad">Modalidad</label>
+      <select id="f-modalidad" data-filter="modalidad"></select>
+    </div>
+    <div class="field">
+      <label for="f-edificio">Edificio</label>
+      <select id="f-edificio" data-filter="edificio"></select>
+    </div>
+    <div class="field">
+      <label for="f-estado">Estado de ocupación</label>
+      <select id="f-estado" data-filter="estado"></select>
+    </div>
+    <div class="field">
+      <label for="f-q">Buscar</label>
+      <input type="search" id="f-q" data-filter="q"
+             placeholder="curso, código, catedrático, salón, auxiliar…">
+    </div>
+    <button class="btn ghost" id="btn-foco" title="Filtra al área que solicita el dashboard">
+      Solo Ciencias y Sistemas
+    </button>
+    <button class="btn ghost" id="btn-reset">Limpiar</button>
+    <button class="btn primary" id="btn-export">Exportar CSV</button>
+    <button class="btn" id="btn-theme" title="Cambiar tema" aria-label="Cambiar tema">◐</button>
+  </div>
+</header>
+
+<main>
+  <!-- ══════════════════ R1-01 · pulso del semestre ══════════════════ -->
+  <section>
+    <div class="grid cards" id="kpis"></div>
+    <p class="note" id="nota-procedencia" hidden></p>
+  </section>
+
+  <!-- ══════════════════ R1-04 / R1-05 · ocupación ══════════════════ -->
+  <section class="grid two" style="margin-top:14px">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2>Estado de ocupación de las secciones <span class="story">R1-04</span></h2>
+          <p class="hint">Cada barra es una decisión pendiente: abrir otra sección, cerrarla o mover estudiantes. Clic para filtrar el tablero.</p>
+        </div>
+      </div>
+      <div id="chart-estado"></div>
+      <p class="note" id="nota-umbral"></p>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2>Distribución de ocupación <span class="story">R1-04</span></h2>
+          <p class="hint">Cuántas secciones caen en cada rango de llenado respecto a su cupo autorizado.</p>
+        </div>
+      </div>
+      <div id="chart-histograma"></div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ R1-03 · demanda por curso ══════════════════ -->
+  <section class="grid" style="margin-top:14px">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2>Cursos por demanda <span class="story">R1-03</span></h2>
+          <p class="hint">Insumo para decidir cuántas secciones abrir el próximo semestre. Clic en un curso para filtrar el tablero.</p>
+        </div>
+        <div class="field">
+          <label for="f-orden-cursos">Ordenar por</label>
+          <select id="f-orden-cursos">
+            <option value="asignados">Asignados</option>
+            <option value="secciones">Secciones</option>
+            <option value="promedio">Promedio por sección</option>
+            <option value="ocupacion">Ocupación</option>
+          </select>
+        </div>
+      </div>
+      <div id="chart-cursos"></div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ R1-09 · modalidad y jornada ══════════════════ -->
+  <section class="grid two" style="margin-top:14px">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2>Modalidad <span class="story">R1-09</span></h2>
+          <p class="hint">Secciones y estudiantes por modalidad. No son la misma historia: pocas secciones virtuales pueden concentrar muchos estudiantes.</p>
+        </div>
+      </div>
+      <div id="chart-modalidad"></div>
+    </div>
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2>Jornada <span class="story">R1-09</span></h2>
+          <p class="hint">Inferida de la hora de inicio del primer bloque de cada sección.</p>
+        </div>
+      </div>
+      <div id="chart-jornada"></div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ R1-08 · salones y horarios ══════════════════ -->
+  <section class="grid" style="margin-top:14px">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2>Ocupación por día y hora <span class="story">R1-08</span></h2>
+          <p class="hint">Dónde está saturado el horario y qué franjas quedan libres. El color codifica estudiantes en clase en esa franja.</p>
+        </div>
+        <div class="field">
+          <label for="f-metrica-heat">Medida</label>
+          <select id="f-metrica-heat">
+            <option value="asignados">Estudiantes</option>
+            <option value="secciones">Secciones</option>
+          </select>
+        </div>
+      </div>
+      <div id="chart-heatmap"></div>
+    </div>
+  </section>
+
+  <!-- ══════ R1-06 / R1-07 · docentes y auxiliares ══════ -->
+  <section class="grid two" style="margin-top:14px">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2>Carga por catedrático <span class="story">R1-06</span></h2>
+          <p class="hint">Insumo de la conversación de asignación de cursos. Clic en un nombre para ver sus secciones.</p>
+        </div>
+        <div class="field">
+          <label for="f-orden-docentes">Ordenar por</label>
+          <select id="f-orden-docentes">
+            <option value="asignados">Estudiantes</option>
+            <option value="secciones">Secciones</option>
+            <option value="horas">Horas semana</option>
+            <option value="nombre">Nombre</option>
+          </select>
+        </div>
+      </div>
+      <div class="tablewrap"><table id="tbl-docentes"></table></div>
+    </div>
+
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2>Auxiliares de cátedra <span class="story">R1-07</span></h2>
+          <p class="hint">Base para justificar solicitudes de plazas ante Dirección y Decanatura.</p>
+        </div>
+      </div>
+      <div class="tabs" role="tablist" id="tabs-aux">
+        <button role="tab" aria-selected="true"  data-tab="ranking">Carga por auxiliar</button>
+        <button role="tab" aria-selected="false" data-tab="sin">Secciones grandes sin auxiliar</button>
+      </div>
+      <div id="aux-resumen" class="legend"></div>
+      <div class="tablewrap"><table id="tbl-aux"></table></div>
+    </div>
+  </section>
+
+  <!-- ══════════════════ R1-10 / R1-11 · tabla maestra ══════════════════ -->
+  <section class="grid" style="margin-top:14px">
+    <div class="card">
+      <div class="card-head">
+        <div>
+          <h2>Secciones <span class="story">R1-10</span> <span class="story">R1-11</span></h2>
+          <p class="hint" id="hint-secciones">Consulta de mostrador: busque un curso, sección, catedrático o salón. Los encabezados ordenan.</p>
+        </div>
+        <div class="field">
+          <label for="f-pagina">Mostrar</label>
+          <select id="f-pagina">
+            <option value="50">50 filas</option>
+            <option value="100" selected>100 filas</option>
+            <option value="300">300 filas</option>
+          </select>
+        </div>
+      </div>
+      <div class="tablewrap" style="max-height:600px"><table id="tbl-secciones"></table></div>
+      <div style="display:flex;gap:8px;align-items:center;margin-top:10px">
+        <button class="btn" id="btn-prev">← Anteriores</button>
+        <button class="btn" id="btn-next">Siguientes →</button>
+        <span class="hint" id="paginacion" style="margin:0"></span>
+      </div>
+    </div>
+  </section>
+
+  <p class="note" style="margin-top:16px">
+    <b>Alcance del MVP.</b> Este tablero es de <b>solo lectura</b> sobre snapshots del reporte de
+    Centro de Cálculo: no escribe en ningún sistema de la Facultad y no contiene datos personales de
+    estudiantes, únicamente conteos agregados. Las historias implementadas son las del Release 1 del
+    <i>user story mapping</i> (<code>docs/user-story-map.md</code>); la comparación entre snapshots,
+    la brecha clase–laboratorio y la detección de traslapes corresponden al Release 2.
+  </p>
+</main>
+
+<footer>
+  Fuente: reporte «TOTAL DE ASIGNADOS», Centro de Cálculo · Facultad de Ingeniería, USAC.
+  Los números mostrados corresponden al corte del snapshot seleccionado, no al estado en vivo del sistema.
+</footer>
+
+<div id="tip" role="status" aria-live="polite"></div>
+<script src="/app.js"></script>
+</body>
+</html>
