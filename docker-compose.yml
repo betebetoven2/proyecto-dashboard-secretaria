@@ -1,0 +1,40 @@
+# Dashboard de Asignados · Secretaría Académica ECYS
+#
+#   Instalar / actualizar:   docker compose up -d --build
+#   Ver registros:           docker compose logs -f
+#   Detener:                 docker compose down          (los datos se conservan)
+#
+# Configuración: copie .env.example a .env y ajuste los valores (opcional).
+
+name: dashboard-asignados
+
+services:
+  app:
+    build: .
+    image: dashboard-asignados:1.0.0
+    container_name: dashboard-asignados
+    restart: unless-stopped
+    ports:
+      - "${PUERTO:-8000}:8000"
+    environment:
+      TZ: America/Guatemala
+      ADMIN_TOKEN: ${ADMIN_TOKEN:-}
+      META_DIAS_ATENCION: ${META_DIAS_ATENCION:-6}
+      UMBRAL_SECCION_GRANDE: ${UMBRAL_SECCION_GRANDE:-60}
+      MAX_MB: ${MAX_MB:-25}
+      INTERVALO_ENTRADA_SEG: ${INTERVALO_ENTRADA_SEG:-10}
+    volumes:
+      # Base SQLite y originales archivados. Volumen administrado por Docker:
+      # SQLite necesita un sistema de archivos Linux real (no una carpeta de Windows).
+      - datos:/data
+      # Carpeta compartida con el equipo: copie aquí los .xlsx y se cargan solos.
+      # También aquí aparecen los respaldos (entrada/respaldos).
+      - ./entrada:/entrada
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+volumes:
+  datos:

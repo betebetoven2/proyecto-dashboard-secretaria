@@ -1,0 +1,13 @@
+.git
+.github
+.venv
+**/__pycache__
+**/*.pyc
+datos
+entrada
+backend/data
+backend/tests
+docs
+Claude outputs
+*.md
+.env

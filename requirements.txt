@@ -1,5 +1,11 @@
-# Dashboard de Asignados · dependencias del backend
-# Instalación:  py -m venv .venv  &&  .venv\Scripts\pip install -r requirements.txt
+# Dashboard de Asignados · dependencias de ejecución (versiones fijas = instalación reproducible)
 fastapi==0.141.1
-uvicorn[standard]==0.53.0
+starlette==1.6.0
+pydantic==2.13.5
+uvicorn==0.53.0
+python-multipart==0.0.32
 openpyxl==3.1.5
+# openpyxl usa defusedxml automáticamente si está instalado: protege contra XML malicioso
+defusedxml==0.7.1
+# zona horaria America/Guatemala sin depender del sistema operativo
+tzdata==2026.5

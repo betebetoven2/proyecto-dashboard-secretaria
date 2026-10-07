@@ -1,0 +1,7 @@
+Copie aquí los reportes de asignados (.xlsx) descargados de Centro de Cálculo.
+El sistema revisa esta carpeta cada pocos segundos y los carga solo.
+
+  procesados/  -> archivos ya cargados (o que ya estaban cargados)
+  rechazados/  -> archivos que no se pudieron cargar, con un .txt que explica por qué
+  respaldos/   -> copias de seguridad generadas con:
+                  docker compose exec app python -m backend.app.etl respaldo

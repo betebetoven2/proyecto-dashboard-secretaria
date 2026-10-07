@@ -1,0 +1,66 @@
+# Integración continua: cada push corre la suite completa y levanta el docker compose
+# real (imagen oficial python:3.12-slim-bookworm) con la autoprueba de instalación.
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  pruebas:
+    name: Pruebas (pytest)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
+      - run: pip install -r requirements-dev.txt
+      - run: python -m pytest -v
+
+  docker:
+    name: Instalación con docker compose
+    runs-on: ubuntu-latest
+    needs: pruebas
+    steps:
+      - uses: actions/checkout@v4
+      - name: Construir y levantar
+        run: docker compose up -d --build
+      - name: Esperar a que el contenedor esté sano
+        run: |
+          for i in $(seq 1 30); do
+            estado=$(docker inspect --format '{{.State.Health.Status}}' dashboard-asignados)
+            echo "intento $i: $estado"
+            [ "$estado" = "healthy" ] && exit 0
+            sleep 3
+          done
+          docker compose logs
+          exit 1
+      - name: Autoprueba dentro del contenedor
+        run: docker compose exec -T app python -m backend.app.autoprueba
+      - name: Subir los reportes reales por la API
+        run: |
+          curl -fsS -F archivos=@backend/tests/fixtures/primer_semestre_2026.xlsx \
+                     -F archivos=@backend/tests/fixtures/vacaciones_primer_semestre_2025.xlsx \
+                     -F archivos=@backend/tests/fixtures/finales_primer_semestre_2023_vacio.xlsx \
+                     http://localhost:8000/api/cargas | tee respuesta.json
+          python3 -c "import json; r=json.load(open('respuesta.json'))['resumen']; assert r=={'aceptado':2,'reemplazo':0,'duplicado':0,'vacio':1,'rechazado':0}, r; print('OK', r)"
+          curl -fsS http://localhost:8000/api/kpis | python3 -c "import json,sys; k=json.load(sys.stdin); assert k['asignados']==40869, k; print('KPI OK')"
+      - name: Carpeta de entrada
+        run: |
+          cp backend/tests/fixtures/vacaciones_primer_semestre_2025.xlsx entrada/copiado.xlsx
+          for i in $(seq 1 20); do [ -z "$(ls entrada/*.xlsx 2>/dev/null)" ] && break; sleep 3; done
+          ls -la entrada entrada/procesados
+          ls entrada/procesados | grep -q copiado.xlsx
+      - name: Persistencia tras reiniciar
+        run: |
+          docker compose down
+          docker compose up -d
+          sleep 15
+          curl -fsS http://localhost:8000/api/salud | python3 -c "import json,sys; s=json.load(sys.stdin); assert s['snapshots']==2, s; print('persistencia OK')"
+      - name: Registros
+        if: always()
+        run: docker compose logs --tail 200

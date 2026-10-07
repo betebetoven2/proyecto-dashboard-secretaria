@@ -6,3 +6,11 @@ backend/data/asignados.db-wal
 backend/data/asignados.db-shm
 ~$*.xlsx
 .DS_Store
+entrada/*
+!entrada/LEEME.txt
+datos/
+.env
+.pytest_cache/
+*.db
+*.db-wal
+*.db-shm

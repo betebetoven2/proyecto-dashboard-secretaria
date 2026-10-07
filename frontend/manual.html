@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Manual de usuario · Asignados ECYS</title>
+<link rel="stylesheet" href="/styles.css">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='3' height='7' x='1' y='8' rx='1' fill='%232a78d6'/%3E%3Crect width='3' height='11' x='6' y='4' rx='1' fill='%232a78d6'/%3E%3Crect width='3' height='14' x='11' y='1' rx='1' fill='%232a78d6'/%3E%3C/svg%3E">
+</head>
+<body>
+<header class="top" style="padding-bottom:12px">
+  <div class="brand">
+    <h1>Manual de usuario</h1>
+    <span class="sub">Dashboard de Asignados · Secretaría Académica · Escuela de Ingeniería en Ciencias y Sistemas</span>
+    <nav class="topnav" aria-label="Secciones">
+      <a href="/">Tablero</a>
+      <a href="/cargas">Cargar reportes</a>
+      <a href="/manual" aria-current="page">Manual</a>
+      <button class="btn" id="btn-theme" title="Cambiar tema" aria-label="Cambiar tema">◐</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+<article class="doc">
+  <p class="lead">Este tablero muestra, en un solo lugar y sin filtrar el Excel a mano, lo que dicen los reportes de
+  asignados de Centro de Cálculo: cuántos estudiantes hay en cada curso y sección, qué secciones necesitan un trámite,
+  cuánto tardan esos trámites en resolverse y cómo cambia todo entre una fecha y otra.</p>
+
+  <nav class="toc"><b>Contenido</b>
+    <ol>
+      <li><a href="#que-es">Qué es y qué no es</a></li>
+      <li><a href="#descargar">Descargar el reporte</a></li>
+      <li><a href="#cargar">Cargar reportes</a></li>
+      <li><a href="#resultados">Qué significa cada resultado</a></li>
+      <li><a href="#encabezado">El encabezado y los filtros</a></li>
+      <li><a href="#vistas">Las vistas del tablero</a></li>
+      <li><a href="#exportar">Exportar y respaldar un número</a></li>
+      <li><a href="#faq">Preguntas frecuentes</a></li>
+      <li><a href="#glosario">Glosario</a></li>
+    </ol>
+  </nav>
+
+  <h2 id="que-es">1. Qué es y qué no es</h2>
+  <ul>
+    <li><b>Es un visor.</b> Lee los reportes que usted carga y los muestra. No modifica nada en los sistemas de la Facultad.</li>
+    <li><b>Es una fotografía.</b> Cada número corresponde a la fecha y hora en que se descargó el reporte (el <i>corte</i>),
+      que siempre aparece en el encabezado. No es el estado en vivo.</li>
+    <li><b>No tiene datos personales de estudiantes.</b> Solo conteos por sección. Sí tiene nombres de catedráticos y auxiliares,
+      por lo que es de uso interno.</li>
+    <li><b>Guarda todo lo que se carga.</b> Cada archivo queda archivado tal como llegó, y se puede volver a descargar.</li>
+  </ul>
+
+  <h2 id="descargar">2. Descargar el reporte</h2>
+  <ol>
+    <li>En el sistema de Centro de Cálculo abra <b>Contadores asignados (Condensado)</b>.</li>
+    <li>Elija el <b>Año</b> y el <b>Período</b> (por ejemplo <i>01 : PRIMER SEMESTRE</i> o <i>02 : VACACIONES DEL PRIMER SEMESTRE</i>).</li>
+    <li>Descárguelo en <b>Excel</b>. No hace falta renombrarlo ni abrirlo: el tablero lee el período, el año y la fecha de corte
+      de la línea «TOTAL DE ASIGNADOS … FECHA/HORA …» que viene dentro del archivo.</li>
+  </ol>
+  <p class="note"><b>Consejo.</b> Durante la asignación, descargue el mismo período cada semana (por ejemplo, los lunes) y cárguelo.
+    Cada descarga es un nuevo <i>corte</i> y con dos o más cortes se activan la <b>evolución</b> y los <b>tiempos de atención</b>.</p>
+
+  <h2 id="cargar">3. Cargar reportes</h2>
+  <h3>Opción A — desde el navegador (la más simple)</h3>
+  <ol>
+    <li>Clic en <b>Cargar reportes</b> (botón azul arriba a la derecha).</li>
+    <li>Arrastre uno o varios archivos a la zona punteada, o haga clic en ella para elegirlos.</li>
+    <li>Cada archivo muestra su resultado en segundos. Al terminar, el botón <b>Ver … en el tablero</b> lo lleva al reporte.</li>
+  </ol>
+  <h3>Opción B — copiando a la carpeta de entrada</h3>
+  <p>En el equipo donde está instalado el sistema, copie los archivos a la carpeta <code>entrada</code>. En unos segundos
+    desaparecen de ahí y pasan a <code>entrada\procesados</code> (cargados) o a <code>entrada\rechazados</code>, junto con un
+    archivo <code>.txt</code> que explica por qué no se cargaron.</p>
+  <h3>Si se equivocó de archivo</h3>
+  <p>En <b>Cargar reportes → Reportes cargados</b>, use <b>Eliminar</b>. El reporte desaparece del tablero, pero el archivo
+    original queda guardado; si lo vuelve a subir, regresa.</p>
+
+  <h2 id="resultados">4. Qué significa cada resultado</h2>
+  <table>
+    <thead><tr><th>Resultado</th><th>Qué pasó</th><th>Qué hacer</th></tr></thead>
+    <tbody>
+      <tr><td><span class="badge b-good" data-icon="✓">Cargado</span></td><td>Se leyó, se verificó contra los totales del pie del reporte y ya está en el tablero.</td><td>Nada. Si trae advertencias, léalas.</td></tr>
+      <tr><td><span class="badge b-good" data-icon="↻">Reemplazó un corte</span></td><td>Ya había un reporte del mismo período con la misma fecha y hora de corte; el nuevo lo sustituye.</td><td>Nada.</td></tr>
+      <tr><td><span class="badge b-info" data-icon="=">Ya estaba cargado</span></td><td>Ese mismo archivo ya se había subido. No se duplica nada.</td><td>Nada.</td></tr>
+      <tr><td><span class="badge b-warning" data-icon="∅">Reporte vacío</span></td><td>El reporte es válido pero dice TOTAL: 0 (el período no tiene asignados).</td><td>Verifique que eligió el período correcto.</td></tr>
+      <tr><td><span class="badge b-critical" data-icon="✗">Rechazado</span></td><td>No se pudo cargar. El mensaje dice exactamente por qué.</td><td>Ver la tabla de abajo.</td></tr>
+    </tbody>
+  </table>
+  <h3>Motivos de rechazo más comunes</h3>
+  <table>
+    <thead><tr><th>El mensaje dice…</th><th>Solución</th></tr></thead>
+    <tbody>
+      <tr><td>«Excel antiguo (.xls) o protegido con contraseña»</td><td>Abra el archivo en Excel y use <i>Guardar como → Libro de Excel (.xlsx)</i>, sin contraseña.</td></tr>
+      <tr><td>«no es un libro de Excel; parece texto o HTML»</td><td>Se descargó en otro formato. Descárguelo de nuevo en Excel.</td></tr>
+      <tr><td>«dañado o incompleto»</td><td>La descarga se interrumpió. Descárguelo de nuevo.</td></tr>
+      <tr><td>«La suma de asignados leída no coincide con el TOTAL del pie»</td><td>El archivo fue modificado después de descargarlo. Use el original de Centro de Cálculo.</td></tr>
+      <tr><td>«Faltan columnas obligatorias» / «No se encontraron las hojas Clase ni Laboratorio»</td><td>No es el reporte de asignados condensado, o cambió de formato. Si es el reporte correcto, avise a soporte técnico.</td></tr>
+      <tr><td>«Falta el token de administración»</td><td>Escriba el token en la tarjeta que aparece arriba en <b>Cargar reportes</b>.</td></tr>
+    </tbody>
+  </table>
+
+  <h2 id="encabezado">5. El encabezado y los filtros</h2>
+  <ul>
+    <li><b>Las etiquetas grises</b> dicen siempre de qué archivo, período y fecha de corte viene lo que ve. <b>⬇ original</b> descarga ese archivo.</li>
+    <li><b>Año → Período → Corte</b> funcionan igual que en el sistema de Centro de Cálculo. Al abrir, el tablero muestra
+      el corte más reciente del período más reciente.</li>
+    <li><b>Filtros</b> (tipo, escuela, área, jornada, modalidad, ocupación, gestión y búsqueda) se aplican a todas las vistas a la vez.
+      Muchas barras también filtran al hacer clic sobre ellas.</li>
+    <li><b>Solo Ciencias y Sistemas</b> limita todo a la Escuela. Vuelva a hacer clic para ver toda la Facultad.</li>
+    <li><b>La dirección de la página guarda los filtros</b>: puede copiarla y enviarla, y la otra persona verá lo mismo.</li>
+    <li>Si una escuela aparece con la marca <span class="inferida">inferida</span>, ese reporte no traía la columna Escuela y se
+      tomó de otros reportes o de una regla por código de curso.</li>
+  </ul>
+
+  <h2 id="vistas">6. Las vistas del tablero</h2>
+  <h3>Tarjetas superiores</h3>
+  <p>Asignaciones, ocupación del cupo (solo secciones abiertas), secciones abiertas y cerradas, secciones con gestiones
+    pendientes, cobertura de auxiliares y catedráticos.</p>
+
+  <h3>Resumen</h3>
+  <p>Estado de ocupación de cada sección: <b>▲ sobrecupo</b> (más asignados que cupo), <b>● por llenarse</b> (85% o más),
+    <b>✓ saludable</b>, <b>○ holgada</b>, <b>▼ riesgo de cierre</b> (bajo el mínimo oficial cuando el reporte lo trae, o bajo el 20%
+    del cupo cuando no), <b>sin asignados</b> y <b>cerrada</b>. También modalidad, jornada y asignados por escuela.</p>
+
+  <h3>Vista 1 · Seguimiento de cursos</h3>
+  <p>Cursos ordenados por demanda (o por secciones, promedio, ocupación o gestiones pendientes); evolución de los asignados
+    entre los cortes del período; histórico por período; los cursos que más cambiaron desde el corte anterior; y el
+    mapa de calor de día y hora.</p>
+
+  <h3>Vista 2 · Estado de gestiones</h3>
+  <p>El sistema revisa cada sección abierta y detecta qué trámite necesita, a partir del propio reporte:</p>
+  <table>
+    <thead><tr><th>Gestión</th><th>Cuándo aparece</th></tr></thead>
+    <tbody>
+      <tr><td>Asignación de catedrático</td><td>La sección está abierta pero el catedrático dice «STAFF».</td></tr>
+      <tr><td>Asignación de salón</td><td>Es presencial y no tiene salón.</td></tr>
+      <tr><td>Ampliación de cupo / nueva sección</td><td>Tiene más asignados que su límite.</td></tr>
+      <tr><td>Revisión de cierre o fusión</td><td>Está bajo el mínimo de asignados.</td></tr>
+      <tr><td>Definición de límite de asignados</td><td>Tiene asignados pero su límite es 0.</td></tr>
+      <tr><td>Plaza de auxiliar de cátedra <i>(en revisión)</i></td><td>Tiene 60 o más estudiantes y ningún auxiliar.</td></tr>
+    </tbody>
+  </table>
+  <p>Cada curso se muestra como una barra con la proporción de secciones <b style="color:var(--good)">al día</b>,
+    <b style="color:#8a6000">en revisión</b> y <b style="color:var(--critical)">pendientes</b>. Debajo está la lista de trabajo,
+    que se puede exportar.</p>
+
+  <h3>Vista 3 · Tiempos de atención</h3>
+  <p>Compara los cortes del período: si una gestión estaba pendiente en un corte y ya no aparece en el siguiente, se
+    considera atendida. Muestra los días promedio por tipo de gestión contra la <b>meta institucional</b> (línea punteada; 6 días
+    por defecto). Como solo se observa en las fechas de corte, el tiempo es «a más tardar» (por ejemplo, ≤ 7 días si los
+    cortes son semanales). <b>Necesita al menos dos cortes del mismo período</b>; si no los hay, la vista lo explica.</p>
+
+  <h3>Docentes y auxiliares</h3>
+  <p>Carga por catedrático (secciones, cursos, estudiantes, horas), carga por auxiliar, secciones grandes sin auxiliar y
+    los tipos de miembro que trae el reporte (por ejemplo, «responsable de carga de notas»).</p>
+
+  <h3>Secciones</h3>
+  <p>La tabla completa, para consultas de mostrador. Use el buscador de arriba (curso, código, sección, catedrático, salón o
+    auxiliar). Los encabezados con flecha ordenan.</p>
+
+  <h2 id="exportar">7. Exportar y respaldar un número</h2>
+  <ul>
+    <li><b>Exportar CSV</b> descarga lo que está viendo, con los filtros aplicados. Las primeras líneas dicen el archivo de
+      origen, el período, la fecha de corte y los filtros: sirven como respaldo del número en un oficio.</li>
+    <li>En la Vista 2, <b>Exportar gestiones CSV</b> descarga la lista de trabajo.</li>
+    <li>El CSV abre directamente en Excel con tildes correctas.</li>
+  </ul>
+
+  <h2 id="faq">8. Preguntas frecuentes</h2>
+  <h3>Subí un reporte de 2023 y el tablero sigue mostrando 2026. ¿Está mal?</h3>
+  <p>No. El tablero abre en el período académico más reciente, no en el último archivo subido. Elija 2023 en el selector de año.</p>
+  <h3>¿Puedo subir el mismo período dos veces?</h3>
+  <p>Sí. Si es el mismo archivo, se ignora. Si es una descarga de otra fecha, se guarda como un nuevo corte. Si tiene la misma
+    fecha y hora de corte pero contenido distinto, reemplaza al anterior.</p>
+  <h3>¿Por qué los números no coinciden con el sistema hoy?</h3>
+  <p>Porque son del corte del archivo. Descargue y cargue un reporte nuevo para actualizar.</p>
+  <h3>¿Qué pasa si cierro el navegador o se apaga el equipo?</h3>
+  <p>Nada se pierde: los datos se guardan en el servidor. Si el equipo servidor se reinicia, el sistema vuelve a arrancar solo.</p>
+  <h3>Quiero cambiar la meta de días o el umbral de auxiliar.</h3>
+  <p>Lo hace soporte técnico en el archivo de configuración (<code>.env</code>), sin perder datos.</p>
+
+  <h2 id="glosario">9. Glosario</h2>
+  <table>
+    <tbody>
+      <tr><td><b>Corte</b></td><td>Fecha y hora en que se descargó el reporte. Un período puede tener varios cortes.</td></tr>
+      <tr><td><b>Snapshot</b></td><td>Un reporte cargado: un período en un corte.</td></tr>
+      <tr><td><b>Sección cerrada</b></td><td>El reporte la trae con salón «CERRADO». No cuenta para cupo ni ocupación.</td></tr>
+      <tr><td><b>STAFF</b></td><td>Lo que el reporte pone cuando una sección no tiene catedrático asignado.</td></tr>
+      <tr><td><b>Gestión</b></td><td>Trámite que una sección necesita, detectado a partir del reporte.</td></tr>
+      <tr><td><b>Inferida</b></td><td>Escuela o área que no venía en el archivo y se completó con otra fuente.</td></tr>
+      <tr><td><b>Totales de control</b></td><td>Las cifras «TOTAL REG» y «TOTAL» al pie de cada hoja del reporte. El sistema exige que su lectura coincida con ellas.</td></tr>
+    </tbody>
+  </table>
+  <p class="hint" style="margin-top:30px">Puede imprimir este manual o guardarlo como PDF con Ctrl + P.</p>
+</article>
+</main>
+<footer>Dashboard de Asignados · Secretaría Académica ECYS · FIUSAC</footer>
+<div id="tip"></div>
+<script src="/common.js"></script>
+<script>conectarTema(document.getElementById('btn-theme'));</script>
+</body>
+</html>

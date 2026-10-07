@@ -1,156 +1,196 @@
-# User Story Mapping — Dashboard de Asignados
+# User Story Mapping — Dashboard de Asignados (v2)
 ### Secretaría Académica · Escuela de Ingeniería en Ciencias y Sistemas (ECYS) · Facultad de Ingeniería, USAC
 
-> **Documento contrato.** Todo lo que se construya en el MVP debe poder trazarse a una historia de este mapa.
-> Si una funcionalidad no aparece aquí, no entra; si una historia de Release 1 no está implementada, el MVP no está completo.
+> **Documento contrato.** Todo lo que se construye debe trazarse a una historia de este mapa, y el mapa
+> debe trazarse al **perfil de prácticas finales aprobado** («Gestión documental de secretaría académica»,
+> 16/08/2026). Si una funcionalidad no aparece aquí, no entra.
+>
+> **Cambios respecto a v1:** se incorporaron los tres archivos reales recibidos (vacaciones 2025 con formato
+> de 33 columnas, finales 2023 vacío), el catálogo de 21 períodos de Centro de Cálculo, y las historias que el
+> perfil exige y v1 no cubría: estado de gestiones, tiempos de atención, carga de archivos, trazabilidad,
+> respaldo e instalación. Ver §6.
 
 ---
 
-## 1. Contexto y naturaleza del dato
+## 1. Alineación con el perfil aprobado
 
-**Origen.** Centro de Cálculo / Facultad de Ingeniería emite el reporte *"TOTAL DE ASIGNADOS"* por semestre. Es un **snapshot**: una fotografía con fecha y hora (`09/09/2026 13:06` en el archivo de prueba, Primer Semestre 2026). No hay acceso a la base de datos transaccional.
+| Elemento del perfil | Cómo se cumple | Historias |
+|---|---|---|
+| Objetivo: *mejorar la visibilidad de procesos con herramientas de visualización* | Tablero web con 6 vistas, filtros comunes y exportación | R1-01 … R1-12 |
+| Objetivo: *mejorar el flujo de datos con software automatizador o facilitador* | Carga por arrastrar y soltar, carpeta vigilada que carga sola, validación automática | R1-15, R1-16 |
+| Objetivo: *modelo de datos centralizado que consolide en una sola fuente* | Réplica SQLite con N snapshots + archivo de originales como fuente de verdad | R1-12, R1-16, R1-17 |
+| Objetivo: *rutinas ETL en Python que normalicen y reduzcan el trabajo manual* | `lector.py` + `ingesta.py`: limpieza documentada, totales de control, catálogo de cursos aprendido | R1-15 |
+| Objetivo: *tablero con al menos tres vistas: seguimiento de cursos, estado de gestiones y tiempos de atención* | Pestañas **Vista 1 · Seguimiento de cursos**, **Vista 2 · Estado de gestiones**, **Vista 3 · Tiempos de atención** | R1-03, R1-13, R1-14, R2-01 |
+| Objetivo: *validar con sesiones de revisión con el asesor* | Este mapa es el guion de la sesión; §7 lista las preguntas abiertas | — |
+| Detalle técnico: Python 3.x, SQL relacional, Git | Python 3.12, SQLite, repositorio con CI | — |
+| Detalle técnico: *Power BI como capa de visualización* | Lo trabaja otro integrante; este sistema le entrega un **contrato de datos** (tablas planas por URL) | R1-18 |
+| Detalle técnico: *archivos CSV y hojas de cálculo como entrada* | Entrada: el .xlsx de Centro de Cálculo. Salida: CSV con procedencia | R1-11, R1-15 |
+| Producto: *dashboard de centralización* | `/` | — |
+| Producto: *modelo de datos y rutinas de carga documentadas* | `docs/arquitectura.md` | — |
+| Producto: *código fuente estructurado y documentado* | Repositorio + 88 pruebas automáticas | — |
+| Producto: *manual de usuario para la Secretaría* | `/manual` dentro del propio sistema | — |
+| Producto: *documentación técnica* | `docs/arquitectura.md`, `docs/instalacion.md`, `docs/powerbi.md` | — |
 
-**Consecuencias de diseño que no son negociables:**
+### La decisión de diseño más importante: «gestiones» con el único formato que existe
+
+El perfil imagina gestiones como constancias, retiros o equivalencias. **El único archivo disponible es el
+reporte de asignados**, que no trae esos trámites. Por instrucción expresa, no se inventaron datos ni se
+pidió un formato nuevo. En su lugar, las vistas 2 y 3 se construyen con los trámites que la Secretaría
+**sí** resuelve sobre la oferta de cursos y que el reporte **sí** permite detectar:
+
+| Gestión | Cómo se detecta en el reporte | Severidad |
+|---|---|---|
+| Asignación de catedrático | Sección abierta con catedrático `STAFF` | Pendiente |
+| Asignación de salón | Sección presencial con salón `0000` / vacío | Pendiente |
+| Ampliación de cupo / nueva sección | Asignados > límite de asignados | Pendiente |
+| Revisión de cierre o fusión | Asignados < límite mínimo (o < 20% del cupo si el mínimo viene en 0) | Pendiente |
+| Definición de límite de asignados | Hay asignados pero el límite es 0 | Pendiente |
+| Plaza de auxiliar de cátedra | ≥ 60 estudiantes y ningún miembro «AUXILIAR» | En revisión |
+
+Y el **tiempo de atención** se mide comparando **cortes** del mismo período: una gestión pendiente en un
+corte que ya no aparece en el siguiente fue atendida entre ambas fechas. El perfil ya lo permite
+(*«las vistas definitivas se ajustarán según los requerimientos que se definan con la Secretaría»*), y
+esta adaptación debe validarse con el asesor (§7).
+
+---
+
+## 2. Naturaleza del dato (medido en los tres archivos reales)
 
 | Hecho | Consecuencia |
 |---|---|
-| Solo lectura, sin API de origen | El sistema **nunca escribe** hacia el origen. Es un visor analítico. |
-| El dato llega por archivo | El ETL debe ser idempotente y tolerante a variaciones de formato entre emisiones. |
-| Es una fotografía, no un vivo | Todo número debe mostrarse **junto a la fecha/hora del snapshot**. Un KPI sin fecha es un KPI que engaña. |
-| Llegarán varios archivos | El modelo guarda **N snapshots**, no "el actual". La comparación entre fotografías es la funcionalidad más valiosa a mediano plazo. |
-| Datos agregados, sin carné ni nombre de estudiante | **No hay datos personales de estudiantes.** Solo conteos. Esto reduce el riesgo de protección de datos casi a cero y debe mantenerse así. Sí hay nombres de catedráticos y auxiliares (dato laboral, uso interno). |
-
-**Lo que el archivo contiene realmente** (medido, no supuesto — snapshot 2026-S1):
-
-- 2 hojas: `Clase` (926 secciones) y `Laboratorio` (452 secciones).
-- 337 cursos distintos de **toda la Facultad**, no solo de ECYS.
-- 40,869 asignaciones totales (30,865 en clase + 10,004 en laboratorio).
-- 476 catedráticos, 179 auxiliares de cátedra en 367 secciones.
-- 80 combinaciones edificio-salón; edificios `T-1, T-3, T-5, T-7, S-11, S-12, ET` (presencial) y `HIBR, MEET, EPS, EXT` (virtual/híbrido/externo).
-- Columnas de procedencia (`Otra Fac.`, `Centros Reg.`, `Otra Univ.`, `No insc.`, `Est. Cierre`, `Otro caso`) **existen pero vienen en cero** en este snapshot. El modelo las conserva; la UI las oculta cuando no hay dato, en lugar de mostrar seis ceros que parecen un error.
-- Del universo total, **87 secciones de clase y 62 de laboratorio** corresponden a códigos del área de Sistemas (0768–0799, 0960–0991, 2009, 7999) = 3,975 + 2,704 asignaciones.
-
-**Decisión de alcance (acordada):** el dashboard cubre **toda la Facultad sin sesgo**, con el área como un filtro más. Razón: los estudiantes de ECYS consumen masivamente cursos de servicio (matemática, física, idioma técnico) que la Escuela no administra pero que determinan si sus estudiantes avanzan. Un dashboard recortado al código 07xx sería ciego justo donde está el cuello de botella.
+| Solo lectura, sin acceso a la base de la Facultad | El sistema nunca escribe hacia el origen |
+| El dato llega por archivo, emitido en cualquier momento, de cualquiera de **21 períodos** | El período, año y fecha de corte se leen del membrete; el nombre del archivo no importa |
+| Un mismo período se puede descargar varias veces | Cada descarga es un **corte**: se guarda aparte y habilita evolución y tiempos |
+| El formato **varía entre emisiones**: 30, 32 o 33 columnas; `Escuela/Area/Subarea` a veces sí y a veces no | Columnas resueltas por nombre; la clasificación que falta se completa con la de otros archivos |
+| Cada hoja trae **totales de control** al pie (`TOTAL REG:` / `TOTAL:`) | Suma de verificación: si la lectura no cuadra con el pie, el archivo se rechaza |
+| Un reporte puede venir **vacío** (finales 2023: sin encabezado, `TOTAL: 0`) | Se informa, no se guarda |
+| Secciones cerradas: edificio `ET`, salón `CERRADO`, catedrático `STAFF` (154 de 343 en vacaciones 2025) | Se cuentan aparte; su cupo no es capacidad real |
+| Una sección ocupa varias filas (un bloque de horario por fila) | Sin agrupar, los totales se inflan |
+| `Límite mínimo de asignados` en 0 (2026-S1) o con dato (65 en vacaciones 2025) | El umbral de cierre usa el dato si existe, si no un parámetro declarado |
+| Sin datos personales de estudiantes; sí nombres de catedráticos y auxiliares | Uso interno; el repositorio debe ser privado |
 
 ---
 
-## 2. La persona
+## 3. La persona
 
-**Rol:** Secretaría Académica de Escuela.
-**Trabajo real:** es el punto donde se cruzan tres presiones — la demanda de los estudiantes, la disponibilidad de catedráticos y auxiliares, y los salones y horarios que asigna la Facultad. Su ciclo es semestral y repetitivo, y hoy se resuelve abriendo el Excel y filtrando a mano.
+**Secretaría Académica de Escuela** (el perfil indica *«Cantidad de personas que atiende: 1»*). Su trabajo es
+el cruce de tres presiones: demanda de estudiantes, disponibilidad de catedráticos y auxiliares, y salones y
+horarios que asigna la Facultad. Hoy lo resuelve abriendo el Excel y filtrando a mano.
 
-**Sus preguntas, en el orden en que le llegan:**
-
-1. ¿Cómo va la asignación este semestre comparada con lo que esperábamos?
-2. ¿Qué cursos se desbordaron y qué secciones quedaron vacías? ¿Abro, cierro o muevo?
-3. ¿Con cuántos estudiantes por catedrático estamos operando? ¿A quién le pido auxiliar y con qué número lo justifico?
-4. ¿Los salones y horarios que nos dieron alcanzan? ¿Hay traslapes?
-5. Un estudiante pregunta por cupo en un curso: ¿dónde queda espacio?
-6. Dirección de Escuela / Decanatura / acreditación me pide un número: ¿de dónde lo saco y cómo lo respaldo?
-
-**Dolores actuales (hipótesis a validar con la persona real):**
-
-- El Excel tiene la información pero no la respuesta: filtrar 1,378 filas a mano para responder "¿cuántas secciones de Estructuras de Datos están sobre el 90% de cupo?" toma minutos y no queda registro.
-- Cada consulta de Dirección se responde rearmando el mismo filtro desde cero.
-- No hay memoria: no se puede comparar la fotografía de hoy contra la de la semana pasada ni contra el semestre anterior, aunque los archivos existan en alguna carpeta.
-- Los datos de clase y de laboratorio viven en hojas separadas, así que la brecha entre asignados a clase y a laboratorio (que es deserción temprana o problema de cupo de lab) es invisible. **Medida: 154 estudiantes de diferencia en el curso 0147, 80 en el 0150, 70 en el 0348.**
+**Sus preguntas:**
+1. ¿Cómo va la asignación de este período y cómo cambió desde la semana pasada?
+2. ¿Qué secciones se desbordaron, cuáles no abren y qué trámite requiere cada una?
+3. ¿Con cuántos estudiantes por catedrático estamos? ¿Dónde hace falta auxiliar y con qué número lo justifico?
+4. ¿Los salones y horarios alcanzan?
+5. Un estudiante pregunta por cupo: ¿dónde queda espacio?
+6. Dirección me pide un número: ¿de dónde lo saco y cómo lo respaldo?
+7. **(nueva)** ¿Cuánto estamos tardando en resolver cada tipo de trámite?
+8. **(nueva)** Me llegó otro reporte: ¿cómo lo agrego sin pedirle nada a nadie?
 
 ---
 
-## 3. El mapa
+## 4. El mapa
 
-### Backbone — actividades del usuario (secuencia real de trabajo)
+### Backbone
 
 ```
-A. Tomar el      B. Dimensionar   C. Equilibrar    D. Justificar    E. Verificar     F. Atender       G. Reportar y
-   pulso del        la oferta        cupos y          docentes y       horarios,        consultas        respaldar
-   semestre         por curso        secciones        auxiliares       salones y        puntuales        decisiones
-                                                                       modalidad
+0. Alimentar    A. Tomar el   B. Dimensionar  C. Equilibrar   D. Justificar  E. Verificar   F. Atender   G. Reportar
+   el tablero      pulso         la oferta       cupos           docentes y     horarios y     consultas    y respaldar
+                                                                 auxiliares     salones
 ```
 
-### Release 1 — MVP (el esqueleto que camina)
+### Release 1 — MVP entregable (implementado y probado)
 
-Criterio de corte de Release 1: **la persona puede responder sus seis preguntas sin abrir el Excel.** Nada más.
+| # | Act. | Historia | Justificación (con dato real) | Criterio de aceptación |
+|---|---|---|---|---|
+| **R1-15** | 0 | Como secretaria quiero **subir uno o varios reportes arrastrándolos** y saber de inmediato si se cargaron | Es la única forma en que el dato entra. Sin esto, cada actualización depende de un técnico | Cada archivo recibe un resultado: cargado, ya estaba, reemplazó un corte, vacío o rechazado **con el motivo en español** |
+| **R1-16** | 0 | Quiero **copiar los archivos a una carpeta** y que se carguen solos | Para cargas masivas o descargas automáticas | Lo cargado pasa a `procesados/`; lo rechazado a `rechazados/` con un `.txt` del motivo |
+| **R1-17** | G | Quiero **respaldar y restaurar** todo con un comando | El dato se acumula semestre a semestre; perderlo es perder el historial | Un zip con los originales reconstruye la base completa |
+| **R1-01** | A | Ver al abrir: asignaciones, ocupación, secciones abiertas y cerradas, secciones con gestiones pendientes, cobertura de auxiliares, con período y fecha de corte visibles | 2026-S1: 51.3% de ocupación del cupo abierto; 344 secciones con algún trámite pendiente | Los KPI cuadran con el pie del reporte (verificado en pruebas) |
+| **R1-02** | A | Filtrar todo por tipo, **escuela**, área, jornada, modalidad, estado de ocupación y de gestión, y elegir **año → período → corte** | El selector replica el diálogo de Centro de Cálculo que la persona ya conoce | El filtro viaja en la URL y sobrevive al cambio de período |
+| **R1-03** | B | Cursos por demanda, con secciones, promedio y gestiones pendientes | Base para decidir cuántas secciones abrir | Ordenable por 5 criterios |
+| **R1-04** | C | Ocupación por sección: sobrecupo / por llenarse / saludable / holgada / riesgo de cierre / sin asignados / cerrada | 2026-S1: 46 en sobrecupo, 206 en riesgo, 74 vacías, 15 cerradas | Clic en una categoría filtra el tablero |
+| **R1-05** | C | Riesgo de cierre usando el **mínimo oficial cuando viene en el reporte** | Vacaciones 2025 trae mínimo 65; 2026-S1 trae 0 | La interfaz dice cuál regla se aplicó |
+| **R1-06** | D | Carga por catedrático (sin contar STAFF) | — | Clic lleva a sus secciones |
+| **R1-07** | D | Auxiliares, secciones grandes sin auxiliar y **tipos de miembro** (p. ej. «responsable de carga de notas») | 2026-S1: 29% de secciones abiertas con auxiliar | — |
+| **R1-08** | E | Ocupación por día y hora; salones más usados | — | Solo secciones abiertas |
+| **R1-09** | E | Modalidad (presencial, híbrido, virtual, externo, sin salón, cerrada) y jornada | — | — |
+| **R1-10** | F | Búsqueda libre por curso, código, sección, catedrático, salón o auxiliar | Consulta de mostrador | — |
+| **R1-11** | G | Exportar a CSV lo filtrado, con archivo de origen, huella y corte en la cabecera | Anexo de oficio con procedencia | Abre bien en Excel (tildes) y no ejecuta fórmulas |
+| **R1-12** | G | Saber siempre de qué archivo y corte viene lo que veo, y **descargar el original** | Trazabilidad | Visible en el encabezado |
+| **R1-13** | C | **Vista 2 · Estado de gestiones**: proporción al día / en revisión / pendiente por curso, y lista de trabajo | Es el boceto del perfil, alimentado con dato real | Exportable a CSV |
+| **R1-14** | A | **Vista 3 · Tiempos de atención**: días promedio por tipo de gestión contra la meta institucional | Boceto del perfil (meta de 6 días, configurable) | Con un solo corte, la vista explica qué falta en vez de mostrar ceros |
+| **R1-18** | G | Entregar al equipo de Power BI **tablas planas por URL** (hechos y dimensiones) | El perfil nombra Power BI; otro integrante lo construye | `docs/powerbi.md` |
 
-| # | Actividad | Historia | Justificación | Dato que la alimenta | Criterio de aceptación |
-|---|---|---|---|---|---|
-| **R1-01** | A | Como secretaria académica quiero ver, al abrir el dashboard, **total de asignaciones, secciones, cursos y ocupación global**, con la fecha y hora del snapshot visible | Es el encabezado de cualquier conversación con Dirección. Hoy ese número se calcula a mano cada vez. La ocupación global del snapshot es 48.7% en clase y 62.7% en laboratorio: un dato que cambia la lectura de "estamos llenos". | `Total`, `Límite de asignados`, conteo de secciones/cursos, encabezado del reporte | Los KPI cuadran contra una suma directa en Excel. La fecha del snapshot aparece en pantalla, no en un tooltip. |
-| **R1-02** | A | Quiero **filtrar todo el dashboard** por tipo (clase/laboratorio), área académica, jornada, modalidad y edificio | Sin filtros el dashboard es un reporte impreso. Con filtros es una herramienta. El área es el filtro que convierte un dashboard de Facultad en uno de ECYS. | Derivados: área por rango de código, jornada por hora de inicio, modalidad por edificio | Cada filtro recalcula KPI, gráficas y tabla de forma consistente; el estado del filtro es compartible por URL. |
-| **R1-03** | B | Quiero ver los **cursos ordenados por demanda**, con número de secciones y promedio de estudiantes por sección | Es la base de la decisión de cuántas secciones abrir el próximo semestre. Ejemplo real: Matemática para Computación 1 tiene 282 asignados en 6 secciones (47/sección); Lógica de Sistemas tiene 197 en 3 (66/sección). Dos cursos del mismo nivel con densidades muy distintas. | Agregación por `Codigo`+`Nombre` | Top-N configurable; ordenable por asignados, secciones o promedio. |
-| **R1-04** | C | Quiero una vista de **ocupación por sección**, clasificada en sobrecupo / saludable / en riesgo / vacía | Es la historia de mayor valor operativo del MVP. En el snapshot hay **29 secciones de clase en sobrecupo, 171 por debajo del 20% y 80 en cero**. Cada una de esas 280 secciones es una decisión pendiente: abrir otra, cerrar, o mover estudiantes. | `Total` vs `Límite de asignados` | Cada sección clasificada y navegable; se puede saltar de la categoría a la lista de secciones que la componen. |
-| **R1-05** | C | Quiero identificar las **secciones vacías o casi vacías** para decidir cierres antes de que inicie el semestre | Una sección con 3 asignados consume un catedrático y un salón que otro curso necesita. Es dinero y es aula. | `Total`, `Límite mínimo de asignados` | Lista descargable, ordenada por ocupación ascendente. Nota visible: el campo `Límite mínimo` viene en cero en este snapshot, así que el umbral de cierre es un parámetro configurable, no un dato del archivo. |
-| **R1-06** | D | Quiero ver **carga por catedrático**: secciones, estudiantes y horas semana | Con 476 catedráticos y casos de hasta 905 estudiantes en 10 secciones, la desigualdad de carga es real y hoy no es visible. Es el insumo de la conversación de asignación de cursos. | `Nombre` (docente), `Horas semana`, `Total` | Tabla ordenable; un docente lleva a sus secciones. |
-| **R1-07** | D | Quiero ver **qué secciones tienen auxiliar de cátedra y cuántos estudiantes atiende cada auxiliar** | La solicitud de plazas de auxiliar se justifica con la relación estudiantes/auxiliar. Hoy: 367 de 926 secciones de clase tienen auxiliar (40%), 179 auxiliares distintos. Ese 60% sin auxiliar es exactamente el argumento que la Secretaría necesita documentar. | `Nombre miembro`, `Tipo miembro` (hasta 2 por sección) | Cobertura de auxiliares como KPI; lista de secciones de alta matrícula sin auxiliar. |
-| **R1-08** | E | Quiero un **mapa de ocupación de salones por día y hora** | Permite ver si el horario que asignó la Facultad deja huecos aprovechables y en qué franjas hay saturación. | `Edificio`, `Salon`, `Hora Inicio/Final`, banderas `L…D` | Heatmap día × hora; celda muestra secciones y estudiantes. |
-| **R1-09** | E | Quiero ver la **distribución presencial / híbrido / virtual** | Define necesidad de aula física y es un número que Decanatura pide. Medido: 311 de 926 secciones de clase son virtuales o híbridas, con 8,911 estudiantes. | `Edificio` ∈ {HIBR, MEET, EPS, EXT} | Desglose por secciones y por estudiantes (no son la misma historia). |
-| **R1-10** | F | Quiero **buscar un curso, sección, docente o salón** y ver su ficha con todo lo asociado | Es la consulta puntual de mostrador: un estudiante pregunta, la Secretaría responde en segundos. | Todas las columnas | Búsqueda por texto libre sobre código, nombre, docente y salón, con respuesta inmediata. |
-| **R1-11** | G | Quiero **exportar a CSV lo que estoy viendo filtrado** | Sin exportación, el dashboard se convierte en un lugar de donde se copia a mano. Con exportación, es la fuente del anexo de cualquier oficio. | Resultado de la consulta activa | El CSV respeta filtros y trae encabezado con fecha del snapshot. |
-| **R1-12** | G | Quiero saber siempre **de qué archivo y de qué fecha** viene lo que veo | Trazabilidad. Un número sin procedencia no sirve para un oficio. | Metadatos del snapshot y nombre de archivo | Visible en el encabezado y en cada exportación. |
+### Release 2 — siguiente iteración
 
-### Release 2 — lo que convierte el MVP en herramienta de decisión
-
-| # | Actividad | Historia | Justificación |
-|---|---|---|---|
-| R2-01 | A, G | **Comparar dos snapshots** y ver el delta por curso y sección | Es el mayor salto de valor de todo el producto: contesta "¿cuánto creció la asignación desde el primer día?" y "¿qué curso se está desbordando ahora?". Requiere solo lo que el MVP ya guarda. |
-| R2-02 | B | **Brecha clase vs laboratorio** por curso | Diferencias medidas de 154, 80 y 70 estudiantes. Señala falta de cupo en lab o abandono temprano. Hoy es invisible porque son dos hojas. |
-| R2-03 | C | **Simulador**: "si cierro esta sección, ¿dónde caben sus estudiantes?" | Convierte el diagnóstico en decisión. Usa cupo libre por franja horaria. |
-| R2-04 | E | **Detección de traslapes** de salón y de docente | El algoritmo preliminar detecta 123 solapes de salón. Requiere validación: los bloques contiguos de una misma sección producen falsos positivos, así que esta historia no entra al MVP sin reglas afinadas. |
-| R2-05 | B | **Vista por nivel del pensum** (semestre 1–10) de Ciencias y Sistemas | Permite leer la demanda como cohortes y anticipar el próximo semestre. Requiere mapa código→semestre, que es dato externo al archivo. |
-| R2-06 | D | **Histórico de carga docente** entre semestres | Insumo de equidad en la asignación y de la memoria de labores. |
-| R2-07 | G | **Reporte PDF de una página**, listo para adjuntar a oficio | El formato en que la información realmente circula en la Facultad. |
-
-### Release 3 — madurez
-
-| # | Historia | Justificación |
+| # | Historia | Estado |
 |---|---|---|
-| R3-01 | Tendencia multi-semestre por curso, con proyección de secciones a abrir | Planificación en lugar de reacción. |
-| R3-02 | Alertas por umbral (sobrecupo, sección vacía, sección sin auxiliar) al cargar un snapshot | El sistema avisa en lugar de esperar a ser consultado. |
-| R3-03 | Carga de snapshots desde la interfaz, con validación y control de versiones | Quita al equipo técnico del camino: la Secretaría carga sus propios archivos. |
-| R3-04 | Panel público / para Dirección con vista restringida | Separa la vista operativa de la vista de gobierno. |
-| R3-05 | Desagregación por procedencia (otra facultad, centros regionales, cierre de pensum) | Las columnas ya existen; cuando el origen las llene, la vista está lista. |
+| R2-01 | Evolución entre cortes y cambios por curso; histórico por período | **Adelantado al MVP** (Vista 1) |
+| R2-02 | Brecha clase vs laboratorio por curso | Pendiente |
+| R2-03 | Simulador: «si cierro esta sección, ¿dónde caben?» | Pendiente |
+| R2-04 | Traslapes de salón y de catedrático | Pendiente (requiere afinar reglas de bloques contiguos) |
+| R2-05 | Vista por nivel del pensum de Sistemas | Pendiente (requiere el mapa código → semestre) |
+| R2-06 | Reporte PDF de una página para oficios | Pendiente |
+| R2-07 | Descarga automática del reporte desde el sistema de Centro de Cálculo hacia la carpeta de entrada | Pendiente (depende de acceso institucional) |
+
+### Release 3
+
+Tendencia multi-semestre con proyección · alertas por umbral al cargar un corte · vista restringida para
+Dirección · desagregación por procedencia (las columnas ya se cargan; vacaciones 2025 ya trae otra facultad
+y centros regionales).
 
 ---
 
-## 4. Fuera de alcance (explícito)
+## 5. Fuera de alcance
 
-- Escribir o corregir datos del origen. El sistema es de lectura.
-- Datos individuales de estudiantes (el archivo no los trae y no deben agregarse).
-- Notas, actas, retiros, historial académico.
-- Autenticación con el sistema de la Facultad (el MVP corre local, en red interna).
-- Cualquier decisión automática. El dashboard informa; la persona decide.
+Escribir en sistemas de la Facultad · datos individuales de estudiantes · notas, actas, retiros · autenticación
+con el sistema de la Facultad (hay un token de administración opcional para subir/eliminar) · decisiones
+automáticas.
 
 ---
 
-## 5. Riesgos y supuestos
+## 6. Riesgos y supuestos
 
-| Riesgo / supuesto | Manejo en el MVP |
+| Riesgo | Manejo |
 |---|---|
-| El área académica se infiere del rango de código, no viene en el archivo | Mapa de rangos explícito y editable en un solo archivo de configuración. Se documenta como heurística, no como verdad. |
-| Una sección puede ocupar **varias filas** (bloques de horario), y las filas de continuación repiten el total | El ETL toma el total solo de la fila que lo trae y acumula los bloques de horario. Sin esta regla, los totales se inflan (1,378 filas → 1,378 secciones en lugar de 926+452). **Validado contra el archivo.** |
-| `Límite mínimo de asignados` viene en cero | El umbral de "riesgo de cierre" es parámetro configurable, y se avisa en la UI que no proviene del archivo. |
-| Columnas de procedencia en cero | Se conservan en el modelo; se ocultan en la UI cuando la suma es cero. |
-| El formato del reporte puede cambiar entre emisiones | El ETL valida encabezados y falla con mensaje claro en lugar de cargar datos silenciosamente mal. |
-| Nombres de docentes con dobles espacios, tildes inconsistentes y caracteres corruptos (`DISE\O`) | Normalización en el ETL; se conserva el valor original para trazabilidad. |
-| Los dolores de la persona son hipótesis mías, no entrevista | Este mapa es el guion de la primera sesión de validación con la Secretaría. Las historias que no resuenen se bajan del Release 1. |
+| El formato del reporte cambia | Columnas por nombre; columnas nuevas se ignoran con advertencia; faltantes obligatorias rechazan el archivo con su nombre |
+| Archivo editado a mano o incompleto | Suma de verificación contra el pie; rechazo con ambos números |
+| Archivo equivocado (.xls viejo, con contraseña, CSV renombrado, HTML, descarga interrumpida) | Se detecta por contenido, no por extensión, con mensaje accionable |
+| Archivos maliciosos (zip bomb, XML con entidades) | Tope de tamaño descomprimido y `defusedxml` |
+| Clasificación por escuela sin columnas en el archivo | Catálogo aprendido de otros archivos → regla por código (93% de acierto medido) → «sin clasificar». Se marca «inferida» |
+| «Gestiones» adaptadas al reporte de asignados | Validar con el asesor (§7). El modelo admite agregar tipos en `config.py` |
+| Tiempos de atención con pocos cortes | Se reportan como cota superior y se marcan los de inicio desconocido |
 
 ---
 
-## 6. Trazabilidad implementación ↔ historia
+## 7. Preguntas para la sesión de validación con el asesor
 
-| Historia | Endpoint / componente |
-|---|---|
-| R1-01, R1-12 | `GET /api/kpis`, encabezado del dashboard |
-| R1-02 | Parámetros de filtro comunes en todos los endpoints |
-| R1-03 | `GET /api/cursos` |
-| R1-04, R1-05 | `GET /api/ocupacion`, `GET /api/secciones?estado=` |
-| R1-06 | `GET /api/docentes` |
-| R1-07 | `GET /api/auxiliares` |
-| R1-08 | `GET /api/heatmap` |
-| R1-09 | `GET /api/modalidad` |
-| R1-10 | `GET /api/secciones?q=` |
-| R1-11 | `GET /api/export.csv` |
-| R2-01 | `GET /api/snapshots` (el modelo ya soporta N snapshots) |
+1. ¿Las seis gestiones derivadas corresponden a trámites reales de la Secretaría? ¿Falta alguna que el reporte permita detectar?
+2. ¿La meta de 6 días aplica igual a todas las gestiones, o cada tipo tiene la suya?
+3. ¿Con qué frecuencia se puede descargar el reporte durante la asignación (diaria, semanal)? Define la precisión de los tiempos.
+4. ¿El umbral de 60 estudiantes para pedir auxiliar es el criterio institucional?
+5. ¿La vista por defecto debe abrir en toda la Facultad o en Ciencias y Sistemas?
 
 ---
 
-*Elaborado a partir del análisis del snapshot `Asignados_Condensado testeo.xlsx` (Primer Semestre 2026, corte 09/09/2026 13:06) y de la estructura curricular publicada de la carrera. Pendiente de validación con la Secretaría Académica de ECYS.*
+## 8. Trazabilidad historia ↔ implementación
+
+| Historia | API | Interfaz | Prueba |
+|---|---|---|---|
+| R1-01 | `/api/kpis` | tarjetas superiores | `test_coherencia_de_kpis` |
+| R1-02 | filtros comunes, `/api/periodos`, `/api/catalogos` | encabezado | `test_todos_los_endpoints_con_y_sin_filtros` |
+| R1-03 | `/api/cursos` | Vista 1 | — |
+| R1-04/05 | `/api/ocupacion` | Resumen | `test_real_vacaciones_2025_formato_33_columnas` |
+| R1-06/07 | `/api/docentes`, `/api/auxiliares` | Docentes y auxiliares | — |
+| R1-08/09 | `/api/heatmap`, `/api/salones`, `/api/distribucion/*` | Resumen, Vista 1 | — |
+| R1-10 | `/api/secciones?q=` | Secciones | — |
+| R1-11 | `/api/export.csv` | Exportar CSV | `test_exportacion_csv_y_proteccion_de_formulas` |
+| R1-12 | `/api/snapshots/{id}/original` | encabezado | `test_original_y_eliminacion` |
+| R1-13 | `/api/gestiones` | Vista 2 | `test_estado_de_gestiones` |
+| R1-14 | `/api/tiempos` | Vista 3 | `test_tiempos_de_atencion_entre_cortes` |
+| R1-15 | `POST /api/cargas` | `/cargas` | `test_lector.py`, `test_subida_*` |
+| R1-16 | vigilante de carpeta | `entrada/` | `test_carpeta_de_entrada` |
+| R1-17 | `etl respaldo` / `restaurar` | consola | `test_respaldo_y_restauracion` |
+| R1-18 | `/api/powerbi/*` | — | `test_power_bi` |
+| R2-01 | `/api/evolucion` | Vista 1 | `test_evolucion_muestra_cambios_por_curso` |
