@@ -11,7 +11,7 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass
 
-from . import config, gestiones
+from . import config, gestiones, predicciones as pred
 
 ABIERTA = "s.cerrada = 0"
 
@@ -539,3 +539,96 @@ def tabla_powerbi(con: sqlite3.Connection, nombre: str):
         raise KeyError(nombre)
     cur = con.execute(TABLAS_POWERBI[nombre])
     return [d[0] for d in cur.description], cur.fetchall()
+
+
+# ═══════════════════════════════════════════════════════════════════════════
+# R1-19 · Predicciones (ver predicciones.py)
+# ═══════════════════════════════════════════════════════════════════════════
+TIPO_DOCUMENTO_PREDICCION = "ASIGNADOS_CONDENSADO"
+
+
+def series_de_periodo(con) -> list[dict]:
+    """Tipos de período cargados y cuántos años distintos tiene cada uno."""
+    return _rows(con, """
+        SELECT periodo_nombre, periodo_codigo, MIN(periodo_orden) AS periodo_orden,
+               COUNT(DISTINCT anio) AS anios, MIN(anio) AS desde, MAX(anio) AS hasta
+        FROM snapshots WHERE tipo_documento = ?
+        GROUP BY periodo_nombre, periodo_codigo
+        ORDER BY anios DESC, periodo_orden""", (TIPO_DOCUMENTO_PREDICCION,))
+
+
+def filas_prediccion(con, periodo_nombre: str) -> tuple[list[dict], list[dict]]:
+    """Una fila por (año, tipo de sección, curso) usando el ÚLTIMO corte de cada año
+    de ese tipo de período. Nunca mezcla tipos de período ni tipos de documento."""
+    cortes = _rows(con, """
+        WITH u AS (SELECT id, anio, fecha_corte,
+                          ROW_NUMBER() OVER (PARTITION BY anio ORDER BY fecha_corte DESC) AS n
+                   FROM snapshots WHERE tipo_documento = ? AND periodo_nombre = ?)
+        SELECT id, anio, fecha_corte FROM u WHERE n = 1 ORDER BY anio""",
+                   (TIPO_DOCUMENTO_PREDICCION, periodo_nombre))
+    if not cortes:
+        return [], []
+    marcas = ",".join("?" * len(cortes))
+    filas = _rows(con, f"""
+        SELECT sn.anio, s.tipo, s.codigo, MAX(s.curso) AS curso, MAX(s.escuela) AS escuela,
+               MAX(s.area) AS area, COALESCE(SUM(s.total), 0) AS asignados,
+               SUM(CASE WHEN s.cerrada = 0 THEN 1 ELSE 0 END) AS abiertas,
+               COALESCE(SUM(CASE WHEN s.cerrada = 0 THEN s.limite END), 0) AS cupo,
+               GROUP_CONCAT(CASE WHEN s.cerrada = 0 AND s.limite > 0 THEN s.limite END) AS limites
+        FROM secciones s JOIN snapshots sn ON sn.id = s.snapshot_id
+        WHERE s.snapshot_id IN ({marcas})
+        GROUP BY sn.anio, s.tipo, s.codigo""", [c["id"] for c in cortes])
+    return cortes, filas
+
+
+FILTROS_PREDICCION = ("tipo", "escuela", "area", "codigo", "q")
+
+
+def predicciones(con, f: Filtros, periodo_nombre: str | None = None) -> dict:
+    snap = snapshot(con, f.snapshot_id)
+    periodo_nombre = periodo_nombre or snap["periodo_nombre"]
+    cortes, filas = filas_prediccion(con, periodo_nombre)
+    base = {
+        "periodo": periodo_nombre,
+        "tipo_documento": TIPO_DOCUMENTO_PREDICCION,
+        "series_disponibles": series_de_periodo(con),
+        "anios_base": [{"anio": c["anio"], "fecha_corte": c["fecha_corte"],
+                        "asignados": sum(x["asignados"] for x in filas if x["anio"] == c["anio"])}
+                       for c in cortes],
+        "filtros_aplicados": {k: getattr(f, k) for k in FILTROS_PREDICCION if getattr(f, k)},
+        "filtros_ignorados": [k for k in Filtros.SIMPLES if getattr(f, k) and k not in FILTROS_PREDICCION],
+    }
+    res = pred.predecir(filas)
+    if not res["disponible"]:
+        return {**base, "disponible": False}
+
+    def pasa(c: dict) -> bool:
+        if f.tipo and c["tipo"] != f.tipo:
+            return False
+        if f.escuela and c["escuela"] != f.escuela:
+            return False
+        if f.area and c["area"] != f.area:
+            return False
+        if f.codigo and c["codigo"] != f.codigo:
+            return False
+        if f.q and f.q.strip():
+            t = f.q.strip().upper()
+            if t not in (c["curso"] or "").upper() and t not in c["codigo"]:
+                return False
+        return True
+
+    cursos = [{k: v for k, v in c.items() if k not in ("z", "sd")} for c in res["cursos"] if pasa(c)]
+    cursos.sort(key=lambda c: -c["prediccion"])
+    resumen = {
+        "cursos": len(cursos),
+        "prediccion": round(sum(c["prediccion"] for c in cursos)),
+        "ultimo_valor": round(sum(c["ultimo_valor"] for c in cursos)),
+        "secciones_actuales": sum(c["secciones_actuales"] or 0 for c in cursos),
+        "secciones_sugeridas": sum(c["secciones_sugeridas"] or 0 for c in cursos),
+        "riesgo_sobrecupo": sum(1 for c in cursos if (c["prob_sobrecupo"] or 0) >= 0.5),
+        "abrir_mas": sum(1 for c in cursos if (c["cambio_secciones"] or 0) > 0),
+        "abrir_menos": sum(1 for c in cursos if (c["cambio_secciones"] or 0) < 0),
+    }
+    return {**base, **{k: v for k, v in res.items() if k not in ("cursos",)},
+            "cursos": cursos, "resumen": resumen,
+            "no_ofertados": [n for n in res["no_ofertados"] if pasa(n)]}

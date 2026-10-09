@@ -1,6 +1,6 @@
 # Documentación técnica
 
-Dashboard de Asignados · Secretaría Académica ECYS · versión 1.0.0
+Dashboard de Asignados · Secretaría Académica ECYS · versión 1.1.0
 
 ## 1. Vista general
 
@@ -8,7 +8,8 @@ Dashboard de Asignados · Secretaría Académica ECYS · versión 1.0.0
                      ┌───────────────────────── contenedor «app» (Docker) ─────────────────────────┐
   Navegador ──HTTP──►│ FastAPI (uvicorn)                                                            │
   /  /cargas         │   ├─ main.py        API REST + archivos estáticos del tablero                │
-  /manual            │   ├─ queries.py     consultas de lectura (una por historia)                  │
+  /manual            │   ├─ queries.py     consultas de lectura (una por historia)
+                     │   ├─ predicciones.py demanda esperada por curso (próximo período)                  │
                      │   │                                                                          │
   Subida (.xlsx) ───►│   ├─ ingesta.py     PIPELINE ÚNICO: huella → validar → archivar → cargar     │
                      │   │     ▲   ▲  └── lector.py   lectura y validación del reporte              │
@@ -123,7 +124,21 @@ El XML interno se lee con `defusedxml` (protección contra entidades maliciosas)
 | Escuela/área: archivo → catálogo aprendido → regla por código → «SIN CLASIFICAR» | `ingesta._clasificador`, `catalogos.py` |
 | Cursos «(DIPLOMADO)» 3xxx heredan la escuela del 0xxx equivalente | `catalogos.codigo_base` |
 
-## 6. Modelo de datos (SQLite, esquema v2)
+## 5 bis. Tipos de documento, formatos y períodos
+
+Tres dimensiones independientes, cada una en su capa:
+
+| Dimensión | Capa | Qué pasa con lo desconocido |
+|---|---|---|
+| Tipo de documento | `documentos.identificar` (firma del membrete u hojas características) | se rechaza: «no es de un tipo de documento soportado» + lista de tipos |
+| Formato (columnas) | lector del tipo, columnas por nombre | columnas nuevas: advertencia; obligatorias faltantes: rechazo |
+| Tipo de período | `catalogos.PERIODOS` (21) | se carga con advertencia y orden 80 |
+
+Cada snapshot guarda `tipo_documento`. Las vistas y las predicciones filtran por tipo de documento y las
+predicciones, además, por tipo de período. Agregar un tipo de documento = escribir su lector y registrarlo
+en `documentos.TIPOS`.
+
+## 6. Modelo de datos (SQLite, esquema v3)
 
 ```
 snapshots 1───* secciones 1───* bloques       (día, hora inicio, hora fin)
@@ -135,7 +150,7 @@ snapshots 1───* secciones 1───* bloques       (día, hora inicio, ho
 
 | Tabla | Grano | Claves importantes |
 |---|---|---|
-| `snapshots` | un archivo aceptado = un período en una fecha de corte | `sha256` único; `anio`, `periodo_nombre`, `periodo_orden`, `fecha_corte` |
+| `snapshots` | un archivo aceptado = un período en una fecha de corte | `sha256` único; `tipo_documento`; `anio`, `periodo_nombre`, `periodo_orden`, `fecha_corte` |
 | `secciones` | una sección (clase o laboratorio) en un snapshot | `estado` (ocupación), `estado_gestion`, `clasificacion_origen`, `cerrada`, `sin_docente` |
 | `bloques` | un bloque de horario | — |
 | `miembros` | un miembro de terna | `tipo` |
@@ -154,7 +169,9 @@ viejo de 2023 no cambia lo que la Secretaría ve al abrir.
 | `backend/app/config.py` | Parámetros de instalación (variables de entorno) y reglas de negocio editables |
 | `backend/app/catalogos.py` | 21 períodos, normalización de texto, heurística de clasificación |
 | `backend/app/catalogo/cursos_semilla.csv` | 140 cursos con escuela/área reales (de vacaciones 2025) |
+| `backend/app/documentos.py` | Registro de **tipos de documento** (hoy: Contadores asignados condensado); identifica el tipo antes de leer |
 | `backend/app/lector.py` | Inspección y lectura del .xlsx; produce `Reporte` con mensajes |
+| `backend/app/predicciones.py` | Modelo de predicción de demanda por curso (ver `docs/predicciones.md`) |
 | `backend/app/gestiones.py` | Gestiones por sección; tiempos de atención entre cortes |
 | `backend/app/db.py` | Esquema, conexión |
 | `backend/app/ingesta.py` | Pipeline, archivo de originales, eliminación, reproceso, respaldo |
@@ -177,6 +194,8 @@ modalidad, edificio, estado, estado_gestion, docente, codigo, q`. Documentación
 | `GET /api/snapshots`, `/api/periodos`, `/api/catalogos` | metadatos y selectores |
 | `GET /api/kpis`, `/cursos`, `/ocupacion`, `/docentes`, `/auxiliares`, `/heatmap`, `/salones`, `/distribucion/{col}`, `/secciones` | vistas |
 | `GET /api/gestiones`, `/api/tiempos`, `/api/evolucion` | vistas 2, 3 y 1 del perfil |
+| `GET /api/predicciones?periodo=…` | demanda esperada por curso, secciones sugeridas, validación |
+| `GET /api/export/predicciones.csv` | predicciones en CSV |
 | `GET /api/export.csv`, `/api/export/gestiones.csv` | exportación |
 | `GET /api/powerbi`, `/api/powerbi/{tabla}.csv` | contrato de datos |
 | `POST /api/cargas` 🔒 | subir 1–30 archivos (multipart, campo `archivos`) |
@@ -212,6 +231,7 @@ python -m pytest
 | `test_ingesta.py` | duplicado, reemplazo, cortes, archivo, reproceso, esquema, reclasificación, concurrencia, carpeta, permisos, respaldo |
 | `test_api.py` | todos los endpoints con y sin filtros, token, exportación, gestiones, tiempos, evolución |
 | `test_catalogos.py` | 21 períodos y precisión de la heurística (≥ 90%) |
+| `test_predicciones.py` | calibración de intervalos por simulación, mejora sobre el ingenuo, recuperación de parámetros, validación móvil, cursos nuevos/discontinuados, ceros, aislamiento por tipo de período y de documento, formatos mezclados, último corte por año |
 
 Además: `python -m backend.app.autoprueba` (verificación de la instalación) y el flujo de GitHub Actions
 `docs/ci/ci.yml` (cópielo a `.github/workflows/` para activarlo), que construye la imagen oficial, levanta `docker compose`, sube los reportes
@@ -227,3 +247,5 @@ reales y verifica persistencia tras reiniciar.
 | Cambió una regla de limpieza | modificar y ejecutar `etl reprocesar` (o `POST /api/reprocesar`) |
 | Nuevo período en el sistema de Centro de Cálculo | agregarlo a `catalogos.PERIODOS` |
 | Cambio de esquema | subir `db.ESQUEMA_VERSION`: la base se reconstruye sola desde los originales |
+| Nuevo tipo de documento | lector propio + registro en `documentos.TIPOS` (y decidir si `alimenta_predicciones`) |
+| Ajustar el modelo de predicción | `PRED_AMORTIGUAMIENTO`, `PRED_NIVEL` en `.env`; el método está en `predicciones.py` |

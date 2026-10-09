@@ -243,6 +243,14 @@ def main() -> int:
         resultados.append(_chequeo("tiempos de atención con 2 cortes", t["disponible"],
                                    f"{t['cortes']} cortes"))
         resultados.append(_chequeo("gestiones derivadas", any(x["secciones"] for x in g["por_tipo"])))
+        r = ingesta.procesar_archivo(construir_reporte(f / "h.xlsx", anio=2025, corte=datetime(2025, 9, 1)),
+                                     "h.xlsx", "autoprueba")
+        with db.conexion() as con:
+            snap = queries.snapshot_vigente(con)
+            pr = queries.predicciones(con, queries.Filtros(snapshot_id=snap["id"]))
+        resultados.append(_chequeo("predicciones con 2 años del mismo período",
+                                   r.cargado and pr["disponible"] and pr["anio_objetivo"] == 2027,
+                                   f"{len(pr.get('cursos', []))} cursos pronosticados"))
         resp = ingesta.respaldo()
         resultados.append(_chequeo("respaldo", resp.exists() and resp.stat().st_size > 0, resp.name))
 

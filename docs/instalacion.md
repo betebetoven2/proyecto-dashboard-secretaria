@@ -28,7 +28,7 @@ firewall si lo pide).
 docker compose exec app python -m backend.app.autoprueba
 ```
 
-Debe terminar con `Instalación verificada: 15/15 comprobaciones correctas.` La prueba usa reportes
+Debe terminar con `Instalación verificada: 16/16 comprobaciones correctas.` La prueba usa reportes
 sintéticos en una carpeta temporal: **no toca los datos reales**.
 
 ## 3. Primera carga
@@ -43,6 +43,13 @@ Opción C — consola:
 ```bash
 docker compose exec app python -m backend.app.etl carpeta
 ```
+
+### Historia para las predicciones
+
+Las predicciones necesitan **al menos 2 años del mismo tipo de período** (idealmente 4 a 6). En el sistema
+de Centro de Cálculo, *Contadores asignados (Condensado)* permite elegir cualquier año: descargue, por
+ejemplo, *01 : PRIMER SEMESTRE* y *05 : SEGUNDO SEMESTRE* de los últimos años y cárguelos todos juntos.
+Detalle en [predicciones.md](predicciones.md).
 
 ## 4. Configuración (opcional)
 
@@ -60,6 +67,8 @@ docker compose up -d
 | `UMBRAL_SECCION_GRANDE` | 60 | estudiantes a partir de los cuales falta auxiliar |
 | `MAX_MB` | 25 | tamaño máximo por archivo |
 | `INTERVALO_ENTRADA_SEG` | 10 | revisión de `entrada/` (0 = apagado) |
+| `PRED_AMORTIGUAMIENTO` | 0.9 | amortiguamiento de la tendencia en predicciones (0.8–0.98) |
+| `PRED_NIVEL` | 0.8 | nivel del intervalo de las predicciones |
 
 ## 5. Operación diaria
 

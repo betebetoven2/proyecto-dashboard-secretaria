@@ -35,6 +35,7 @@
       <li><a href="#resultados">Qué significa cada resultado</a></li>
       <li><a href="#encabezado">El encabezado y los filtros</a></li>
       <li><a href="#vistas">Las vistas del tablero</a></li>
+      <li><a href="#predicciones">Predicciones</a></li>
       <li><a href="#exportar">Exportar y respaldar un número</a></li>
       <li><a href="#faq">Preguntas frecuentes</a></li>
       <li><a href="#glosario">Glosario</a></li>
@@ -159,15 +160,38 @@
   <p>La tabla completa, para consultas de mostrador. Use el buscador de arriba (curso, código, sección, catedrático, salón o
     auxiliar). Los encabezados con flecha ordenan.</p>
 
-  <h2 id="exportar">7. Exportar y respaldar un número</h2>
+  <h2 id="predicciones">7. Predicciones</h2>
+  <p>La pestaña <b>Predicciones</b> estima cuántos estudiantes se asignarán a cada curso en el <b>próximo período del mismo tipo</b>
+    (por ejemplo, Primer Semestre del año siguiente) y cuántas secciones conviene abrir.</p>
+  <h3>Qué necesita</h3>
+  <p>Reportes de <b>al menos dos años del mismo tipo de período</b>. El sistema nunca compara un semestre con unas vacaciones
+    ni con unos finales: cada tipo de período se predice con su propia historia. En el sistema de Centro de Cálculo puede elegir
+    cualquier año en <i>Contadores asignados (Condensado)</i>: descargue los años anteriores del período que le interesa y cárguelos.
+    Con tres años o más, el sistema además le dice qué tan bien habría acertado en el pasado.</p>
+  <h3>Cómo leer la tabla</h3>
+  <table>
+    <tbody>
+      <tr><td><b>Predicción</b></td><td>El número más probable de asignados.</td></tr>
+      <tr><td><b>Intervalo 80%</b></td><td>Rango donde caerá la demanda 8 de cada 10 veces. Más años de historia = rango más estrecho.</td></tr>
+      <tr><td><b>Crec. anual</b></td><td>Cuánto crece (o decrece) el curso por año, ya ajustado.</td></tr>
+      <tr><td><b>Peso propio</b></td><td>Cuánto se basa en la historia del propio curso. Con poca historia, el sistema se apoya en lo que hace la escuela en general (0% = curso nuevo).</td></tr>
+      <tr><td><b>Secciones</b></td><td>Abiertas hoy → sugeridas. Mantiene el tamaño promedio de sección actual y nunca baja de lo que exige el cupo en el escenario alto.</td></tr>
+      <tr><td><b>P(sobrecupo)</b></td><td>Probabilidad de que la demanda supere el cupo actual del curso si no se abre nada nuevo.</td></tr>
+      <tr><td><b>Confiabilidad</b></td><td>Alta, media o baja según los años de historia y lo estable del curso.</td></tr>
+    </tbody>
+  </table>
+  <p class="note"><b>Importante.</b> Si el último año todavía está en asignación, su dato está incompleto y la predicción saldrá baja.
+    La predicción es un insumo para decidir, no una decisión: no conoce cambios de pensum, de reglamento ni situaciones excepcionales.</p>
+
+  <h2 id="exportar">8. Exportar y respaldar un número</h2>
   <ul>
     <li><b>Exportar CSV</b> descarga lo que está viendo, con los filtros aplicados. Las primeras líneas dicen el archivo de
       origen, el período, la fecha de corte y los filtros: sirven como respaldo del número en un oficio.</li>
-    <li>En la Vista 2, <b>Exportar gestiones CSV</b> descarga la lista de trabajo.</li>
+    <li>En la Vista 2, <b>Exportar gestiones CSV</b> descarga la lista de trabajo; en Predicciones, <b>Exportar predicciones CSV</b> descarga la tabla de predicciones.</li>
     <li>El CSV abre directamente en Excel con tildes correctas.</li>
   </ul>
 
-  <h2 id="faq">8. Preguntas frecuentes</h2>
+  <h2 id="faq">9. Preguntas frecuentes</h2>
   <h3>Subí un reporte de 2023 y el tablero sigue mostrando 2026. ¿Está mal?</h3>
   <p>No. El tablero abre en el período académico más reciente, no en el último archivo subido. Elija 2023 en el selector de año.</p>
   <h3>¿Puedo subir el mismo período dos veces?</h3>
@@ -180,7 +204,7 @@
   <h3>Quiero cambiar la meta de días o el umbral de auxiliar.</h3>
   <p>Lo hace soporte técnico en el archivo de configuración (<code>.env</code>), sin perder datos.</p>
 
-  <h2 id="glosario">9. Glosario</h2>
+  <h2 id="glosario">10. Glosario</h2>
   <table>
     <tbody>
       <tr><td><b>Corte</b></td><td>Fecha y hora en que se descargó el reporte. Un período puede tener varios cortes.</td></tr>

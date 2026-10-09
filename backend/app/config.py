@@ -75,7 +75,11 @@ ZONA_HORARIA = os.environ.get("TZ", "America/Guatemala") or "America/Guatemala"
 #: El boceto del perfil usa 6 días como ejemplo; ajustable por la Secretaría.
 META_DIAS_ATENCION = _env_float("META_DIAS_ATENCION", 6.0)
 
-VERSION = "1.0.0"
+#: Predicciones: amortiguamiento de la tendencia (0.8–0.98) y nivel del intervalo.
+PRED_AMORTIGUAMIENTO = _env_float("PRED_AMORTIGUAMIENTO", 0.9)
+PRED_NIVEL = _env_float("PRED_NIVEL", 0.8)
+
+VERSION = "1.1.0"
 
 
 # ═══════════════════════════════════════════════════════════════════════════

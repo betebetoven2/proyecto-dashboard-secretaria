@@ -1,7 +1,7 @@
 /* Tablero · cada bloque está rotulado con la historia del user story mapping que atiende. */
 
 const FILTROS = ['snapshot_id', 'tipo', 'escuela', 'area', 'jornada', 'modalidad', 'estado', 'estado_gestion', 'codigo', 'docente', 'q'];
-const VISTAS = ['resumen', 'seguimiento', 'gestiones', 'tiempos', 'docentes', 'secciones'];
+const VISTAS = ['resumen', 'seguimiento', 'gestiones', 'tiempos', 'predicciones', 'docentes', 'secciones'];
 const state = { filtros: {}, vista: 'resumen', offset: 0, limite: 100, orden: 'asignados', tabAux: 'ranking', periodos: [], catalogos: null };
 
 const params = (extra = {}) => ({ ...state.filtros, ...extra });
@@ -269,6 +269,118 @@ async function renderTiempos() {
   ], t.episodios, { vacio: 'Sin gestiones en los cortes comparados.' });
 }
 
+/* ═════════════════════ PREDICCIONES (R1-19) ═════════════════════ */
+const pctSigno = v => (v > 0 ? '+' : '') + (v * 100).toFixed(1) + '%';
+async function renderPredicciones() {
+  const periodo = $('#f-periodo-pred').value || undefined;
+  const p = await get('/api/predicciones', { periodo });
+  const sel = $('#f-periodo-pred');
+  sel.innerHTML = p.series_disponibles.map(s =>
+    `<option value="${esc(s.periodo_nombre)}">${s.periodo_codigo ? s.periodo_codigo + ' : ' : ''}${esc(s.periodo_nombre)} — ${s.anios} año${s.anios === 1 ? '' : 's'}</option>`).join('');
+  sel.value = p.periodo;
+  const cont = $('#pred-contenido');
+  const codigo = p.series_disponibles.find(s => s.periodo_nombre === p.periodo)?.periodo_codigo;
+
+  if (!p.disponible) {
+    const anios = p.anios_base.map(a => a.anio);
+    const otros = p.series_disponibles.filter(s => s.anios >= 2);
+    cont.innerHTML = `<div class="empty">
+      <h2>Se necesitan al menos dos años de ${esc(p.periodo)}</h2>
+      <p>Las predicciones comparan el mismo tipo de período año contra año (un semestre con semestres, vacaciones con
+         vacaciones). De <b>${esc(p.periodo)}</b> hay ${anios.length ? 'solo ' + anios.join(', ') : 'ningún año'}.</p>
+      <p>En el sistema de Centro de Cálculo, en <b>Contadores asignados (Condensado)</b>, elija el período
+         <b>${codigo ? codigo + ' : ' : ''}${esc(p.periodo)}</b> de años anteriores (por ejemplo ${anios.length ? anios[0] - 1 + ' y ' + (anios[0] - 2) : 'los últimos cuatro'}),
+         descargue cada uno y cárguelos. Con tres años o más, el sistema además mide qué tan bien acierta.</p>
+      ${otros.length ? `<p>Ya se puede predecir: ${otros.map(o => `<a href="#" data-periodo="${esc(o.periodo_nombre)}">${esc(o.periodo_nombre)}</a>`).join(', ')}.</p>` : ''}
+      <p style="margin-top:16px"><a class="btn primary" href="/cargas" style="text-decoration:none">Cargar reportes de años anteriores</a></p></div>`;
+    $$('[data-periodo]', cont).forEach(a => a.addEventListener('click', e => { e.preventDefault(); $('#f-periodo-pred').value = a.dataset.periodo; renderPredicciones(); }));
+    return;
+  }
+
+  const r = p.resumen, v = p.validacion, m = p.modelo;
+  const cambio = r.ultimo_valor ? (r.prediccion - r.ultimo_valor) / r.ultimo_valor : 0;
+  const nivel = Math.round(m.nivel_intervalo * 100);
+  const validacionTxt = v.disponible
+    ? (v.error_relativo < 1
+      ? `${((1 - v.error_relativo) * 100).toFixed(0)}% menos error que repetir el año anterior`
+      : `no supera a «repetir el año anterior» (error relativo ${v.error_relativo})`)
+    : 'requiere 3 años o más';
+  const ordenar = { prediccion: c => -c.prediccion, cambio: c => -(c.cambio_secciones ?? -99), riesgo: c => -(c.prob_sobrecupo ?? -1), crecimiento: c => -c.crecimiento_anual };
+  const cursos = [...p.cursos].sort((a, b) => ordenar[$('#f-orden-pred').value](a) - ordenar[$('#f-orden-pred').value](b));
+  const total = state.filtros.escuela && p.totales[state.filtros.escuela] ? [state.filtros.escuela, p.totales[state.filtros.escuela]] : ['FACULTAD', p.totales.FACULTAD];
+
+  cont.innerHTML = `
+    <p class="note" style="margin:0 0 12px"><b>Qué se predice.</b> Asignados por curso en <b>${esc(p.periodo)} ${p.anio_objetivo}</b>,
+      con base en ${p.anios_base.map(a => `${a.anio} (corte ${fechaHumana(a.fecha_corte).slice(0, 10)})`).join(', ')}.
+      Solo se comparan reportes del mismo tipo de período. Si el último año todavía está en asignación, su dato está incompleto y la predicción saldrá baja.
+      ${p.filtros_ignorados.length ? `Los filtros de ${p.filtros_ignorados.join(', ')} no aplican aquí porque cambian de un año a otro.` : ''}</p>
+    <div class="kpi-mini">
+      <div class="card"><div class="k">Demanda esperada ${p.anio_objetivo}</div><div class="v">${num(r.prediccion)}</div><div class="d">${pctSigno(cambio)} frente a ${num(r.ultimo_valor)} en ${p.anios[p.anios.length - 1]} · ${num(r.cursos)} cursos</div></div>
+      <div class="card"><div class="k">Secciones sugeridas</div><div class="v">${num(r.secciones_sugeridas)}</div><div class="d">frente a ${num(r.secciones_actuales)} abiertas hoy</div></div>
+      <div class="card"><div class="k">Cursos que necesitan más secciones</div><div class="v">${num(r.abrir_mas)}</div><div class="d">${num(r.abrir_menos)} podrían abrir menos</div></div>
+      <div class="card"><div class="k">Riesgo de sobrecupo</div><div class="v">${num(r.riesgo_sobrecupo)}</div><div class="d">cursos con probabilidad ≥ 50% de superar su cupo actual</div></div>
+      <div class="card"><div class="k">Validación del modelo</div><div class="v" style="font-size:16px">${v.disponible ? (v.error_relativo < 1 ? '✓ ' : '! ') + 'Probado' : 'Sin validar'}</div><div class="d">${validacionTxt}</div></div>
+    </div>
+    <div class="grid two">
+      <div class="card">
+        <h2>Total ${total[0] === 'FACULTAD' ? 'de la Facultad' : esc(total[0])} <span class="story">R1-19</span></h2>
+        <p class="hint">Asignados por año en ${esc(p.periodo)} y predicción con su intervalo del ${nivel}%.</p>
+        <div id="chart-pred-total"></div>
+        <p class="hint" id="nota-coherencia" style="margin:6px 0 0"></p>
+      </div>
+      <div class="card">
+        <h2>Cómo se calcula</h2>
+        <ul style="margin:4px 0 0;padding-left:18px;font-size:13px;color:var(--text-secondary)">
+          <li><b>Crecimiento de cada curso</b> año contra año, en escala logarítmica.</li>
+          <li>Cursos con poca historia se acercan al crecimiento de su escuela (<i>encogimiento empírico-bayesiano</i>, Efron y Morris). La columna «peso propio» dice cuánto pesa la historia del curso.</li>
+          <li>La tendencia se <b>amortigua</b> (φ = ${m.amortiguamiento_phi}) para no proyectar una línea recta sin fin (Gardner y McKenzie).</li>
+          <li><b>Secciones sugeridas</b>: las de hoy escaladas por el crecimiento esperado (conserva el tamaño promedio actual) y nunca menos de las que exige el cupo en el escenario alto.</li>
+          <li><b>Validación</b>: se esconde cada año, se predice con los anteriores y se compara contra «igual que el año pasado».</li>
+        </ul>
+        <p class="hint" style="margin-top:8px">Ruido anual estimado ${(m.ruido_anual_sigma * 100).toFixed(1)}% · crecimiento global ${pctSigno(m.crecimiento_global_anual)} por año.</p>
+      </div>
+    </div>
+    <div class="card" style="margin-top:14px">
+      <div class="card-head"><div>
+        <h2>Predicción por curso <span class="story">R1-19</span></h2>
+        <p class="hint">Intervalo: rango donde caerá la demanda con ${nivel}% de probabilidad. Clic en un curso para ver sus secciones actuales.</p></div>
+        <button class="btn" id="btn-export-pred">Exportar predicciones CSV</button></div>
+      <div class="tablewrap" style="max-height:560px"><table id="tbl-pred"></table></div>
+    </div>
+    ${v.disponible ? `<div class="card" style="margin-top:14px"><h2>Validación año por año</h2>
+      <p class="hint">Error relativo &lt; 1: el modelo se equivocó menos que repetir el año anterior. Cobertura: proporción de cursos que cayeron dentro del intervalo (lo ideal es cerca de ${nivel}%).</p>
+      <div class="tablewrap"><table id="tbl-val"></table></div></div>` : ''}
+    ${p.no_ofertados.length ? `<p class="note">${p.no_ofertados.length} cursos con historia en ${esc(p.periodo)} no se ofrecieron en ${p.anios[p.anios.length - 1]} y no se predicen.</p>` : ''}`;
+
+  pronosticoChart($('#chart-pred-total'), total[1], p.anio_objetivo);
+  if (total[1] && !state.filtros.tipo && !state.filtros.q && !state.filtros.codigo && !state.filtros.area) {
+    const suma = r.prediccion, agr = total[1].prediccion;
+    $('#nota-coherencia').textContent = `Este total se pronostica como serie propia (${num(agr)}). La suma de las predicciones por curso da ${num(suma)} `
+      + `(${((suma - agr) / agr * 100).toFixed(1)}% de diferencia): son dos estimaciones válidas; para planificar secciones use la de cada curso.`;
+  }
+  const conf = { alta: 'Al día', media: 'En revisión', baja: 'Pendiente' };
+  tabla($('#tbl-pred'), [
+    { titulo: 'Curso', ancho: 1, render: c => `${esc(c.codigo)} · ${esc(c.curso)}<br><span class="hint" style="margin:0">${esc(c.tipo)} · ${esc(c.escuela)}</span>` },
+    { titulo: `Historia ${p.anios[0]}–${p.anios[p.anios.length - 1]}`, render: c => c.historia.map(h => `<span title="${h.anio}">${num(h.asignados)}</span>`).join(' <span style="color:var(--text-muted)">→</span> ') + (c.anios_historia < p.anios.length ? ` <span class="hint" style="margin:0">(${c.anios_historia} de ${p.anios.length} años)</span>` : '') },
+    { titulo: `Predicción ${p.anio_objetivo}`, num: 1, render: c => `<b>${num(c.prediccion)}</b>` },
+    { titulo: `Intervalo ${nivel}%`, num: 1, render: c => `${num(c.intervalo_bajo)} – ${num(c.intervalo_alto)}` },
+    { titulo: 'Crec. anual', num: 1, render: c => pctSigno(c.crecimiento_anual) },
+    { titulo: 'Peso propio', num: 1, render: c => `${Math.round(c.peso_propio * 100)}%` },
+    { titulo: 'Secciones', num: 1, render: c => c.secciones_sugeridas == null ? '—' : `${c.secciones_actuales} → <b>${c.secciones_sugeridas}</b>${c.cambio_secciones ? ` <span style="color:${c.cambio_secciones > 0 ? 'var(--critical)' : 'var(--text-muted)'}">(${c.cambio_secciones > 0 ? '+' : ''}${c.cambio_secciones})</span>` : ''}` },
+    { titulo: 'P(sobrecupo)', num: 1, render: c => c.prob_sobrecupo == null ? '—' : `${Math.round(c.prob_sobrecupo * 100)}%` },
+    { titulo: 'Confiabilidad', render: c => insignia(conf[c.confiabilidad]).replace(/>[^<]*<\/span>$/, `>${c.confiabilidad}</span>`) },
+  ], cursos.slice(0, 300), { vacio: 'Sin cursos para este filtro.', alClicFila: c => { aplicar({ codigo: c.codigo }); irA('secciones'); } });
+  if (v.disponible) tabla($('#tbl-val'), [
+    { titulo: 'Año predicho', render: x => x.anio }, { titulo: 'Cursos', num: 1, render: x => x.cursos },
+    { titulo: 'Error relativo', num: 1, render: x => x.error_relativo ?? '—' },
+    { titulo: 'Error % ponderado', num: 1, render: x => x.wape != null ? (x.wape * 100).toFixed(1) + '%' : '—' },
+    { titulo: 'Cobertura', num: 1, render: x => (x.cobertura * 100).toFixed(0) + '%' },
+  ], v.detalle);
+  $('#btn-export-pred').addEventListener('click', () => {
+    location.href = `/api/export/predicciones.csv?${new URLSearchParams(Object.entries(params({ periodo: p.periodo })).filter(([, x]) => x))}`;
+  });
+}
+
 /* ═════════════════════ DOCENTES Y AUXILIARES ═════════════════════ */
 async function renderDocentes() {
   const [{ docentes }, a] = await Promise.all([
@@ -331,7 +443,7 @@ async function renderSecciones() {
 }
 
 /* ═════════════════════ orquestación ═════════════════════ */
-const RENDER = { resumen: renderResumen, seguimiento: renderSeguimiento, gestiones: renderGestiones, tiempos: renderTiempos, docentes: renderDocentes, secciones: renderSecciones };
+const RENDER = { resumen: renderResumen, seguimiento: renderSeguimiento, gestiones: renderGestiones, tiempos: renderTiempos, predicciones: renderPredicciones, docentes: renderDocentes, secciones: renderSecciones };
 
 function mostrarError(e) {
   console.error(e);
@@ -419,6 +531,8 @@ function conectarEventos() {
   addEventListener('hashchange', () => { const h = location.hash.slice(1); if (VISTAS.includes(h) && h !== state.vista) irA(h); });
   $('#f-orden-cursos').addEventListener('change', renderSeguimiento);
   $('#f-orden-docentes').addEventListener('change', renderDocentes);
+  $('#f-periodo-pred').addEventListener('change', renderPredicciones);
+  $('#f-orden-pred').addEventListener('change', renderPredicciones);
   $('#f-metrica-heat').addEventListener('change', () => get('/api/heatmap').then(hm => heatmap($('#chart-heatmap'), hm, $('#f-metrica-heat').value)));
   $('#f-pagina').addEventListener('change', e => { state.limite = +e.target.value; state.offset = 0; renderSecciones(); });
   $('#btn-prev').addEventListener('click', () => { state.offset = Math.max(0, state.offset - state.limite); renderSecciones(); });

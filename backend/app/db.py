@@ -16,7 +16,7 @@ from contextlib import contextmanager
 
 from . import config
 
-ESQUEMA_VERSION = "2"
+ESQUEMA_VERSION = "3"   # v3: tipo_documento en snapshots
 
 ESQUEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS meta (
 CREATE TABLE IF NOT EXISTS snapshots (
     id                INTEGER PRIMARY KEY AUTOINCREMENT,
     sha256            TEXT    NOT NULL UNIQUE,
+    tipo_documento    TEXT    NOT NULL DEFAULT 'ASIGNADOS_CONDENSADO',  -- ver documentos.py
     archivo_nombre    TEXT    NOT NULL,       -- nombre con que se subió
     archivo_ruta      TEXT    NOT NULL,       -- ruta relativa dentro de ARCHIVO_DIR
     encabezado        TEXT,
@@ -46,6 +47,7 @@ CREATE TABLE IF NOT EXISTS snapshots (
     advertencias_json TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_snap_periodo ON snapshots(anio, periodo_orden, fecha_corte);
+CREATE INDEX IF NOT EXISTS ix_snap_serie ON snapshots(tipo_documento, periodo_nombre, anio);
 
 CREATE TABLE IF NOT EXISTS secciones (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,

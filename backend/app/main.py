@@ -207,6 +207,13 @@ def api_evolucion(f: Filtros = Depends(filtros), c=Depends(con)):
     return queries.evolucion(c, f)
 
 
+@app.get("/api/predicciones", tags=["perfil"])
+def api_predicciones(f: Filtros = Depends(filtros), c=Depends(con),
+                     periodo: str | None = Query(None, description="Tipo de período; por defecto el del snapshot")):
+    """R1-19 · Demanda esperada por curso en el siguiente período del mismo tipo."""
+    return queries.predicciones(c, f, periodo)
+
+
 # ═══════════════════════════════════════════════════════════════════════════
 # Exportaciones (R1-11) y contrato para Power BI
 # ═══════════════════════════════════════════════════════════════════════════
@@ -268,6 +275,27 @@ def api_export_gestiones(f: Filtros = Depends(filtros), c=Depends(con)):
             "tipo", "severidad", "detalle"]
     return _csv(_meta_filtros(c, f, len(datos)), cols, ([d[k] for k in cols] for d in datos),
                 f"gestiones_{f.snapshot_id}.csv")
+
+
+@app.get("/api/export/predicciones.csv", tags=["exportación"])
+def api_export_predicciones(f: Filtros = Depends(filtros), c=Depends(con), periodo: str | None = None):
+    p = queries.predicciones(c, f, periodo)
+    if not p["disponible"]:
+        raise HTTPException(409, "No hay historia suficiente para predecir este tipo de período.")
+    cols = [("tipo", "Tipo"), ("codigo", "Código"), ("curso", "Curso"), ("escuela", "Escuela"),
+            ("ultimo_anio", "Último año"), ("ultimo_valor", "Asignados último año"),
+            ("anios_historia", "Años de historia"), ("prediccion", f"Predicción {p['anio_objetivo']}"),
+            ("intervalo_bajo", "Intervalo bajo"), ("intervalo_alto", "Intervalo alto"),
+            ("crecimiento_anual", "Crecimiento anual estimado"), ("peso_propio", "Peso de su propia historia"),
+            ("confiabilidad", "Confiabilidad"), ("secciones_actuales", "Secciones actuales"),
+            ("cupo_por_seccion", "Cupo típico por sección"), ("secciones_sugeridas", "Secciones sugeridas"),
+            ("prob_sobrecupo", "Probabilidad de sobrecupo")]
+    meta = [f"# Predicción de {p['periodo']} {p['anio_objetivo']} con base en {', '.join(map(str, p['anios']))}",
+            f"# Modelo: {p['modelo']['metodo']} (phi={p['modelo']['amortiguamiento_phi']}, "
+            f"intervalo {int(p['modelo']['nivel_intervalo'] * 100)}%)",
+            f"# Filtros: {p['filtros_aplicados'] or 'ninguno'}"]
+    return _csv(meta, [e for _, e in cols], ([x[k] for k, _ in cols] for x in p["cursos"]),
+                f"predicciones_{p['anio_objetivo']}.csv")
 
 
 @app.get("/api/powerbi", tags=["power bi"])

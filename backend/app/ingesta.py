@@ -40,7 +40,7 @@ from datetime import datetime
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
-from . import catalogos, config, db, gestiones, lector
+from . import catalogos, config, db, documentos, gestiones, lector
 from .catalogos import normalizar
 
 log = logging.getLogger("asignados.ingesta")
@@ -244,7 +244,7 @@ def _procesar(ruta: Path, nombre: str, origen: str, sha: str, tam: int) -> Resul
                      f"{previo['fecha_corte'].replace('T', ' ')[:16]}). No se modificó nada."),
             snapshot_id=previo["id"], **base)
 
-    rep = lector.leer_reporte(ruta, nombre)
+    rep = leer_documento(ruta, nombre)
     mensajes = [m.a_dict() for m in rep.mensajes]
     if not rep.es_valido:
         primero = rep.errores[0].texto
@@ -277,6 +277,28 @@ def _procesar(ruta: Path, nombre: str, origen: str, sha: str, tam: int) -> Resul
                  f"del reporte.{sufijo}"),
         snapshot_id=snap_id, descripcion=rep.descripcion, secciones=len(rep.secciones),
         asignados=rep.total_asignados, mensajes=mensajes, **base)
+
+
+def leer_documento(ruta: Path, nombre: str | None) -> lector.Reporte:
+    """Identifica el TIPO de documento y lo lee con su lector.
+
+    Un .xlsx válido que no corresponde a ningún tipo registrado se rechaza aquí,
+    con la lista de tipos soportados, en lugar de pasarlo por un lector ajeno."""
+    previos = lector.inspeccionar_archivo(ruta, nombre)
+    if any(m.nivel == "error" for m in previos):
+        rep = lector.Reporte(ruta=ruta)
+        rep.mensajes.extend(previos)
+        return rep
+    tipo = documentos.identificar(ruta)
+    if tipo is None:
+        rep = lector.Reporte(ruta=ruta)
+        rep.error("tipo_no_soportado",
+                  "El archivo es un Excel válido, pero no es de un tipo de documento soportado. "
+                  f"Tipos soportados: {documentos.nombres_soportados()}.")
+        return rep
+    rep = tipo.leer(ruta, nombre)
+    rep.tipo_documento = tipo.clave
+    return rep
 
 
 def _clasificador(con):
@@ -312,20 +334,23 @@ def _guardar(rep: lector.Reporte, ruta: Path, nombre: str, origen: str, sha: str
     try:
         con.execute("BEGIN IMMEDIATE")
         reemplazado = con.execute(
-            "SELECT id, sha256 FROM snapshots WHERE anio = ? AND periodo_nombre = ? "
-            "AND fecha_corte = ?",
-            (rep.anio, periodo.nombre if periodo else normalizar(rep.periodo_nombre), fecha),
+            "SELECT id, sha256 FROM snapshots WHERE tipo_documento = ? AND anio = ? "
+            "AND periodo_nombre = ? AND fecha_corte = ?",
+            (rep.tipo_documento, rep.anio,
+             periodo.nombre if periodo else normalizar(rep.periodo_nombre), fecha),
         ).fetchone()
         if reemplazado:
             con.execute("DELETE FROM snapshots WHERE id = ?", (reemplazado["id"],))
 
         cur = con.execute(
             """INSERT INTO snapshots
-               (sha256, archivo_nombre, archivo_ruta, encabezado, periodo_codigo, periodo_nombre,
-                periodo_orden, semestre, anio, fecha_corte, cargado_en, origen, total_secciones,
-                total_asignados, control_json, trae_clasificacion, advertencias_json)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (sha, nombre, str(destino.relative_to(config.ARCHIVO_DIR)), rep.encabezado,
+               (sha256, tipo_documento, archivo_nombre, archivo_ruta, encabezado, periodo_codigo,
+                periodo_nombre, periodo_orden, semestre, anio, fecha_corte, cargado_en, origen,
+                total_secciones, total_asignados, control_json, trae_clasificacion,
+                advertencias_json)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (sha, rep.tipo_documento, nombre, str(destino.relative_to(config.ARCHIVO_DIR)),
+             rep.encabezado,
              periodo.codigo if periodo else None,
              periodo.nombre if periodo else normalizar(rep.periodo_nombre),
              periodo.orden if periodo else 80, periodo.semestre if periodo else None,
@@ -465,7 +490,7 @@ def reprocesar(registrar: bool = True) -> list[ResultadoCarga]:
             sha = ficha["sha256"]
             ruta = _ruta_archivo(sha)
             t0 = time.perf_counter()
-            rep = lector.leer_reporte(ruta, ficha.get("nombre"))
+            rep = leer_documento(ruta, ficha.get("nombre"))
             if not rep.es_valido or rep.vacio:
                 res = ResultadoCarga("rechazado", ficha.get("nombre", sha),
                                      "Ya no pasa las validaciones vigentes: "

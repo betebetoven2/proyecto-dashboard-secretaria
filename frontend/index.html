@@ -67,6 +67,7 @@
       <a href="#seguimiento" role="tab" data-vista="seguimiento">Seguimiento de cursos<span class="perfil">VISTA 1</span></a>
       <a href="#gestiones" role="tab" data-vista="gestiones">Estado de gestiones<span class="perfil">VISTA 2</span></a>
       <a href="#tiempos" role="tab" data-vista="tiempos">Tiempos de atención<span class="perfil">VISTA 3</span></a>
+      <a href="#predicciones" role="tab" data-vista="predicciones">Predicciones</a>
       <a href="#docentes" role="tab" data-vista="docentes">Docentes y auxiliares</a>
       <a href="#secciones" role="tab" data-vista="secciones">Secciones</a>
     </nav>
@@ -183,6 +184,22 @@
     <!-- ═══════════════ VISTA 3 · TIEMPOS DE ATENCIÓN ═══════════════ -->
     <section class="vista" data-vista="tiempos" hidden>
       <div id="tiempos-contenido"></div>
+    </section>
+
+    <!-- ═══════════════ PREDICCIONES ═══════════════ -->
+    <section class="vista" data-vista="predicciones" hidden>
+      <div class="card-head" style="margin-bottom:10px">
+        <div class="field"><label for="f-periodo-pred">Tipo de período a predecir</label>
+          <select id="f-periodo-pred"></select></div>
+        <div class="field"><label for="f-orden-pred">Ordenar cursos por</label>
+          <select id="f-orden-pred">
+            <option value="prediccion">Demanda esperada</option>
+            <option value="cambio">Secciones por abrir</option>
+            <option value="riesgo">Probabilidad de sobrecupo</option>
+            <option value="crecimiento">Crecimiento anual</option>
+          </select></div>
+      </div>
+      <div id="pred-contenido"></div>
     </section>
 
     <!-- ═══════════════ DOCENTES Y AUXILIARES ═══════════════ -->

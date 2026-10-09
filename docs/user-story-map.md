@@ -1,4 +1,4 @@
-# User Story Mapping — Dashboard de Asignados (v2)
+# User Story Mapping — Dashboard de Asignados (v2.1)
 ### Secretaría Académica · Escuela de Ingeniería en Ciencias y Sistemas (ECYS) · Facultad de Ingeniería, USAC
 
 > **Documento contrato.** Todo lo que se construye debe trazarse a una historia de este mapa, y el mapa
@@ -9,6 +9,9 @@
 > de 33 columnas, finales 2023 vacío), el catálogo de 21 períodos de Centro de Cálculo, y las historias que el
 > perfil exige y v1 no cubría: estado de gestiones, tiempos de atención, carga de archivos, trazabilidad,
 > respaldo e instalación. Ver §6.
+>
+> **v2.1 (solicitud de la Secretaría previa a la instalación):** predicciones de demanda por curso (R1-19) y
+> registro explícito de tipos de documento. Ver `docs/predicciones.md`.
 
 ---
 
@@ -21,13 +24,14 @@
 | Objetivo: *modelo de datos centralizado que consolide en una sola fuente* | Réplica SQLite con N snapshots + archivo de originales como fuente de verdad | R1-12, R1-16, R1-17 |
 | Objetivo: *rutinas ETL en Python que normalicen y reduzcan el trabajo manual* | `lector.py` + `ingesta.py`: limpieza documentada, totales de control, catálogo de cursos aprendido | R1-15 |
 | Objetivo: *tablero con al menos tres vistas: seguimiento de cursos, estado de gestiones y tiempos de atención* | Pestañas **Vista 1 · Seguimiento de cursos**, **Vista 2 · Estado de gestiones**, **Vista 3 · Tiempos de atención** | R1-03, R1-13, R1-14, R2-01 |
+| Solicitud posterior: *predicciones* | Demanda esperada por curso para el próximo período del mismo tipo, secciones sugeridas y riesgo de sobrecupo, con validación contra el pasado | R1-19 |
 | Objetivo: *validar con sesiones de revisión con el asesor* | Este mapa es el guion de la sesión; §7 lista las preguntas abiertas | — |
 | Detalle técnico: Python 3.x, SQL relacional, Git | Python 3.12, SQLite, repositorio con CI | — |
 | Detalle técnico: *Power BI como capa de visualización* | Lo trabaja otro integrante; este sistema le entrega un **contrato de datos** (tablas planas por URL) | R1-18 |
 | Detalle técnico: *archivos CSV y hojas de cálculo como entrada* | Entrada: el .xlsx de Centro de Cálculo. Salida: CSV con procedencia | R1-11, R1-15 |
 | Producto: *dashboard de centralización* | `/` | — |
 | Producto: *modelo de datos y rutinas de carga documentadas* | `docs/arquitectura.md` | — |
-| Producto: *código fuente estructurado y documentado* | Repositorio + 88 pruebas automáticas | — |
+| Producto: *código fuente estructurado y documentado* | Repositorio + 106 pruebas automáticas | — |
 | Producto: *manual de usuario para la Secretaría* | `/manual` dentro del propio sistema | — |
 | Producto: *documentación técnica* | `docs/arquitectura.md`, `docs/instalacion.md`, `docs/powerbi.md` | — |
 
@@ -84,6 +88,7 @@ horarios que asigna la Facultad. Hoy lo resuelve abriendo el Excel y filtrando a
 4. ¿Los salones y horarios alcanzan?
 5. Un estudiante pregunta por cupo: ¿dónde queda espacio?
 6. Dirección me pide un número: ¿de dónde lo saco y cómo lo respaldo?
+9. **(v2.1)** ¿Cuántos estudiantes vendrán el próximo semestre a cada curso y cuántas secciones debo pedir?
 7. **(nueva)** ¿Cuánto estamos tardando en resolver cada tipo de trámite?
 8. **(nueva)** Me llegó otro reporte: ¿cómo lo agrego sin pedirle nada a nadie?
 
@@ -120,6 +125,7 @@ horarios que asigna la Facultad. Hoy lo resuelve abriendo el Excel y filtrando a
 | **R1-12** | G | Saber siempre de qué archivo y corte viene lo que veo, y **descargar el original** | Trazabilidad | Visible en el encabezado |
 | **R1-13** | C | **Vista 2 · Estado de gestiones**: proporción al día / en revisión / pendiente por curso, y lista de trabajo | Es el boceto del perfil, alimentado con dato real | Exportable a CSV |
 | **R1-14** | A | **Vista 3 · Tiempos de atención**: días promedio por tipo de gestión contra la meta institucional | Boceto del perfil (meta de 6 días, configurable) | Con un solo corte, la vista explica qué falta en vez de mostrar ceros |
+| **R1-19** | B | **Predicciones**: demanda esperada de cada curso en el próximo período del mismo tipo, con intervalo, secciones sugeridas y probabilidad de sobrecupo | Abrir secciones se decide antes del período; hoy se decide mirando solo el anterior. El modelo comete 16% menos error que «repetir el año pasado» en simulación | Nunca mezcla tipos de período ni de documento; con < 2 años explica qué cargar; muestra su propia validación |
 | **R1-18** | G | Entregar al equipo de Power BI **tablas planas por URL** (hechos y dimensiones) | El perfil nombra Power BI; otro integrante lo construye | `docs/powerbi.md` |
 
 ### Release 2 — siguiente iteración
@@ -161,6 +167,9 @@ automáticas.
 | Clasificación por escuela sin columnas en el archivo | Catálogo aprendido de otros archivos → regla por código (93% de acierto medido) → «sin clasificar». Se marca «inferida» |
 | «Gestiones» adaptadas al reporte de asignados | Validar con el asesor (§7). El modelo admite agregar tipos en `config.py` |
 | Tiempos de atención con pocos cortes | Se reportan como cota superior y se marcan los de inicio desconocido |
+| Llegan documentos de **otro tipo** (otros reportes de Centro de Cálculo) | Registro de tipos (`documentos.py`): lo no reconocido se rechaza listando los tipos soportados; cada snapshot guarda su tipo |
+| Predicciones mezclando períodos o formatos distintos | Serie = (tipo de documento, tipo de período, Clase/Lab, código); el formato no interviene; último corte de cada año. Probado |
+| Predicción con el último año aún en asignación | Advertencia visible en la vista; se muestra la fecha de corte usada por año |
 
 ---
 
@@ -171,6 +180,8 @@ automáticas.
 3. ¿Con qué frecuencia se puede descargar el reporte durante la asignación (diaria, semanal)? Define la precisión de los tiempos.
 4. ¿El umbral de 60 estudiantes para pedir auxiliar es el criterio institucional?
 5. ¿La vista por defecto debe abrir en toda la Facultad o en Ciencias y Sistemas?
+6. ¿Cuántos años de historia se pueden descargar de Centro de Cálculo para las predicciones? ¿Hay años atípicos (p. ej. pandemia) que convenga excluir?
+7. ¿Las secciones sugeridas deben considerar un tamaño máximo de sección distinto al cupo actual?
 
 ---
 
@@ -194,3 +205,4 @@ automáticas.
 | R1-17 | `etl respaldo` / `restaurar` | consola | `test_respaldo_y_restauracion` |
 | R1-18 | `/api/powerbi/*` | — | `test_power_bi` |
 | R2-01 | `/api/evolucion` | Vista 1 | `test_evolucion_muestra_cambios_por_curso` |
+| R1-19 | `/api/predicciones`, `/api/export/predicciones.csv` | Predicciones | `test_predicciones.py` (18 pruebas) |

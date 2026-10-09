@@ -246,3 +246,39 @@ const insignia = e => {
   const s = ESTILO_ESTADO[e] || ESTILO_ESTADO['Sin asignados'];
   return `<span class="badge ${s.cls}" data-icon="${s.icono}">${esc(e)}</span>`;
 };
+
+
+/* ─────────── histórico + pronóstico con intervalo ─────────── */
+function pronosticoChart(cont, serie, anioObjetivo) {
+  cont.innerHTML = '';
+  if (!serie) { cont.innerHTML = '<p class="loading">Sin datos.</p>'; return; }
+  const hist = serie.historia;
+  const w = anchoDe(cont), h = 230, ml = 64, mr = 70, mt = 18, mb = 34;
+  const anios = [...hist.map(x => x.anio), anioObjetivo];
+  const a0 = Math.min(...anios), a1 = Math.max(...anios);
+  const max = Math.max(...hist.map(x => x.asignados), serie.intervalo_alto) * 1.08;
+  const X = a => ml + (a1 === a0 ? 0.5 : (a - a0) / (a1 - a0)) * (w - ml - mr);
+  const Y = v => mt + (1 - v / max) * (h - mt - mb);
+  const svg = lienzo(w, h);
+  for (let k = 0; k <= 4; k++) {
+    const v = (max / 4) * k, y = Y(v);
+    svg.appendChild(crear('line', { x1: ml, y1: y, x2: w - mr, y2: y, class: k ? 'gridline' : 'baseline' }));
+    const t = crear('text', { x: ml - 8, y: y + 4, 'text-anchor': 'end', class: 'tick' }); t.textContent = num(v); svg.appendChild(t);
+  }
+  anios.forEach(a => { const t = crear('text', { x: X(a), y: h - 12, 'text-anchor': 'middle', class: 'tick' }); t.textContent = a; svg.appendChild(t); });
+  svg.appendChild(crear('path', { d: hist.map((p, i) => `${i ? 'L' : 'M'}${X(p.anio)},${Y(p.asignados)}`).join(' '), fill: 'none', stroke: 'var(--series-1)', 'stroke-width': 2 }));
+  const ult = hist[hist.length - 1];
+  svg.appendChild(crear('line', { x1: X(ult.anio), y1: Y(ult.asignados), x2: X(anioObjetivo), y2: Y(serie.prediccion), stroke: 'var(--series-2)', 'stroke-width': 2, 'stroke-dasharray': '5 4' }));
+  const xa = X(anioObjetivo);
+  svg.appendChild(crear('rect', { x: xa - 7, y: Y(serie.intervalo_alto), width: 14, height: Math.max(Y(serie.intervalo_bajo) - Y(serie.intervalo_alto), 2), rx: 3, fill: 'var(--series-2)', opacity: 0.22 }));
+  hist.forEach(p => {
+    const c = crear('circle', { cx: X(p.anio), cy: Y(p.asignados), r: 4.5, fill: 'var(--series-1)', stroke: 'var(--surface-1)', 'stroke-width': 2 });
+    svg.appendChild(c); conTip(c, `<b>${p.anio}</b><span class="r">${num(p.asignados)} asignados</span>`);
+  });
+  const cp = crear('circle', { cx: xa, cy: Y(serie.prediccion), r: 5.5, fill: 'var(--series-2)', stroke: 'var(--surface-1)', 'stroke-width': 2 });
+  svg.appendChild(cp);
+  conTip(cp, `<b>Predicción ${anioObjetivo}</b><span class="r">${num(serie.prediccion)} asignados<br>rango ${num(serie.intervalo_bajo)} – ${num(serie.intervalo_alto)}</span>`);
+  const t = crear('text', { x: xa + 12, y: Y(serie.prediccion) + 4, class: 'val' }); t.textContent = num(serie.prediccion); svg.appendChild(t);
+  const leyenda = crear('text', { x: ml, y: 12, class: 'tick' }); leyenda.textContent = '● histórico   ● predicción (barra = intervalo)'; svg.appendChild(leyenda);
+  cont.appendChild(svg);
+}

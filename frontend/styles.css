@@ -98,7 +98,7 @@ header.top {
   font-size: 10.5px; text-transform: uppercase; letter-spacing: .05em;
   color: var(--text-muted); font-weight: 600;
 }
-select, input[type="search"], button.btn {
+select, input[type="search"], .btn {
   font: inherit; font-size: 13px; color: var(--text-primary);
   background: var(--surface-1); border: 1px solid var(--axis);
   border-radius: 7px; padding: 5px 9px; min-height: 30px;
@@ -107,10 +107,11 @@ input[type="search"] { min-width: 210px; }
 select:focus-visible, input:focus-visible, button:focus-visible {
   outline: 2px solid var(--series-1); outline-offset: 1px;
 }
-button.btn { cursor: pointer; }
-button.btn:hover { background: var(--surface-2); }
-button.btn.primary { background: var(--series-1); border-color: var(--series-1); color: #fff; }
-button.btn.ghost { border-style: dashed; color: var(--text-secondary); }
+.btn { display: inline-flex; align-items: center; text-decoration: none; cursor: pointer; }
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--series-1); border-color: var(--series-1); color: #fff; }
+.btn.primary:hover { background: var(--series-1); filter: brightness(1.08); }
+.btn.ghost { border-style: dashed; color: var(--text-secondary); }
 
 /* ---------------------------------------------------------------- layout */
 main { padding: 18px 20px 60px; max-width: 1560px; margin: 0 auto; }

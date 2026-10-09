@@ -102,6 +102,7 @@ class Mensaje:
 @dataclass
 class Reporte:
     ruta: Path
+    tipo_documento: str = "ASIGNADOS_CONDENSADO"
     encabezado: str | None = None
     periodo_nombre: str | None = None
     periodo: catalogos.Periodo | None = None
