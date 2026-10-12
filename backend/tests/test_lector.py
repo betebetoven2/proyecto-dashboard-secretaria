@@ -204,6 +204,38 @@ def test_hojas_de_reportes_distintos(tmp_path):
     assert "membretes_distintos" in codigos(lector.leer_reporte(ruta), "error")
 
 
+def test_hojas_con_un_minuto_de_diferencia_son_el_mismo_reporte(tmp_path):
+    # Caso real (2023): Centro de Cálculo generó «Clase» a las 11:38 y «Laboratorio» a las 11:39.
+    ruta = construir_reporte(tmp_path / "a.xlsx", corte=datetime(2026, 10, 12, 11, 38))
+    wb = load_workbook(ruta)
+    wb["Laboratorio"]["A4"] = "TOTAL DE ASIGNADOS PRIMER SEMESTRE - 2026, FECHA/HORA: 12/10/2026  11:39"
+    wb.save(ruta)
+    rep = lector.leer_reporte(ruta)
+    assert rep.es_valido, rep.mensajes
+    assert rep.fecha_corte == datetime(2026, 10, 12, 11, 39)     # la hora más reciente
+    assert "membretes_minutos" in codigos(rep, "info")
+
+
+def test_hojas_de_horas_muy_distintas_siguen_rechazandose(tmp_path):
+    ruta = construir_reporte(tmp_path / "a.xlsx", corte=datetime(2026, 10, 12, 8, 0))
+    wb = load_workbook(ruta)
+    wb["Laboratorio"]["A4"] = "TOTAL DE ASIGNADOS PRIMER SEMESTRE - 2026, FECHA/HORA: 12/10/2026  15:00"
+    wb.save(ruta)
+    assert "membretes_distintos" in codigos(lector.leer_reporte(ruta), "error")
+
+
+def test_archivo_recortado_por_otra_herramienta(tmp_path):
+    # Caso real (2024): una herramienta de conversión cortó la hoja a 1000 filas.
+    ruta = construir_reporte(tmp_path / "a.xlsx", sin_pie=True)
+    wb = load_workbook(ruta)
+    ws = wb["Clase"]
+    ws.cell(row=ws.max_row + 1, column=1, value="... (truncated at 1000 rows)")
+    wb.save(ruta)
+    rep = lector.leer_reporte(ruta)
+    assert not rep.es_valido
+    assert "archivo_recortado" in codigos(rep, "error")
+
+
 # ═══════════════════════════ archivo (bytes) ═══════════════════════════
 def test_archivo_vacio(tmp_path):
     (tmp_path / "a.xlsx").write_bytes(b"")

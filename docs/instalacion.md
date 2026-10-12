@@ -28,7 +28,7 @@ firewall si lo pide).
 docker compose exec app python -m backend.app.autoprueba
 ```
 
-Debe terminar con `Instalación verificada: 16/16 comprobaciones correctas.` La prueba usa reportes
+Debe terminar con `Instalación verificada: 18/18 comprobaciones correctas.` La prueba usa reportes
 sintéticos en una carpeta temporal: **no toca los datos reales**.
 
 ## 3. Primera carga
@@ -43,6 +43,19 @@ Opción C — consola:
 ```bash
 docker compose exec app python -m backend.app.etl carpeta
 ```
+
+### Importar un .zip con la historia
+
+Si los reportes vienen en un **.zip** (por ejemplo `semestre_2021_a_2026.zip`), no hace falta
+descomprimirlo:
+
+- **Navegador:** Cargar reportes → arrastrar el .zip. Cada reporte de adentro muestra su resultado.
+- **Carpeta:** copiar el .zip (o la carpeta descomprimida) a `entrada/`.
+- **Consola:** copiar el .zip a `entrada/` y ejecutar
+  `docker compose exec app python -m backend.app.etl cargar /entrada/semestre_2021_a_2026.zip`.
+
+Un reporte recortado (por ejemplo, con la marca «truncated at 1000 rows» de otra herramienta) se rechaza
+con su motivo; los demás del .zip se cargan igual.
 
 ### Historia para las predicciones
 
@@ -65,7 +78,8 @@ docker compose up -d
 | `ADMIN_TOKEN` | (vacío) | si se define, subir y eliminar exigen este token |
 | `META_DIAS_ATENCION` | 6 | meta de la vista «Tiempos de atención» |
 | `UMBRAL_SECCION_GRANDE` | 60 | estudiantes a partir de los cuales falta auxiliar |
-| `MAX_MB` | 25 | tamaño máximo por archivo |
+| `MAX_MB` | 25 | tamaño máximo por reporte |
+| `MAX_PAQUETE_MB` | 200 | tamaño máximo de un .zip con varios reportes |
 | `INTERVALO_ENTRADA_SEG` | 10 | revisión de `entrada/` (0 = apagado) |
 | `PRED_AMORTIGUAMIENTO` | 0.9 | amortiguamiento de la tendencia en predicciones (0.8–0.98) |
 | `PRED_NIVEL` | 0.8 | nivel del intervalo de las predicciones |

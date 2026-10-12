@@ -1,8 +1,9 @@
 """
 Carpeta de entrada vigilada.
 
-La forma más simple de cargar reportes: copiar los .xlsx a la carpeta
-`entrada/` (en Docker es una carpeta compartida con el equipo anfitrión). Cada
+La forma más simple de cargar reportes: copiar los .xlsx (sueltos, en una
+subcarpeta o dentro de un .zip) a la carpeta `entrada/` (en Docker es una carpeta
+compartida con el equipo anfitrión). Cada
 pocos segundos el sistema la revisa, procesa lo que encuentre por el mismo
 pipeline que la subida web y mueve cada archivo a:
 
@@ -21,12 +22,15 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from . import config, ingesta, lector
+from . import config, ingesta, lector, paquetes
 
 log = logging.getLogger("asignados.vigilante")
 
 _IGNORAR_SUFIJOS = {".txt", ".md", ".tmp", ".part", ".crdownload", ".download", ".ini", ".db"}
 _vistos: dict[str, tuple[int, float]] = {}
+#: Archivos ya procesados que no se pudieron mover (p. ej. una subcarpeta sin permiso de
+#: escritura para el servidor): no se reprocesan mientras no cambien.
+_atascados: dict[str, tuple[int, float]] = {}
 #: Errores que pueden deberse a una copia todavía en curso (Windows reserva el
 #: tamaño final antes de terminar de escribir). Si el archivo es reciente, se
 #: reintenta en la siguiente revisión en lugar de rechazarlo.
@@ -34,17 +38,32 @@ _TRANSITORIOS = {"zip_danado", "libro_ilegible", "archivo_vacio_bytes", "archivo
 _ESPERA_COPIA_SEG = 120
 
 
-def _candidatos() -> list[Path]:
-    if not config.ENTRADA_DIR.is_dir():
-        return []
+#: Subcarpetas de entrada/ que administra el propio sistema (nunca se procesan).
+_RESERVADAS = {"procesados", "rechazados", "respaldos"}
+
+
+def _utiles(carpeta: Path) -> list[Path]:
     out = []
-    for p in sorted(config.ENTRADA_DIR.iterdir()):
-        if not p.is_file():
-            continue
+    for p in sorted(carpeta.iterdir()):
         n = p.name
-        if n.startswith(("~$", ".", "_")) or p.suffix.lower() in _IGNORAR_SUFIJOS:
+        if not p.is_file() or n.startswith(("~$", ".", "_")) or p.suffix.lower() in _IGNORAR_SUFIJOS:
             continue
         out.append(p)
+    return out
+
+
+def _candidatos() -> list[Path]:
+    """Archivos sueltos en entrada/ y en sus subcarpetas de primer nivel (p. ej. la carpeta
+    que queda al descomprimir un .zip ahí mismo)."""
+    if not config.ENTRADA_DIR.is_dir():
+        return []
+    out = _utiles(config.ENTRADA_DIR)
+    for sub in sorted(config.ENTRADA_DIR.iterdir()):
+        if sub.is_dir() and sub.name.lower() not in _RESERVADAS and not sub.name.startswith((".", "_")):
+            try:
+                out += _utiles(sub)
+            except OSError:
+                continue
     return out
 
 
@@ -62,6 +81,7 @@ def _destino(carpeta: Path, nombre: str) -> Path:
 def revisar_una_vez(exigir_estable: bool = True) -> list[ingesta.ResultadoCarga]:
     resultados = []
     presentes = set()
+    carpetas = set()
     for p in _candidatos():
         presentes.add(str(p))
         try:                       # un archivo problemático nunca detiene a los demás
@@ -69,52 +89,94 @@ def revisar_una_vez(exigir_estable: bool = True) -> list[ingesta.ResultadoCarga]
         except Exception:  # noqa: BLE001
             log.exception("No se pudo procesar %s desde la carpeta de entrada", p.name)
             continue
-        if res is not None:
-            resultados.append(res)
-    for clave in list(_vistos):
-        if clave not in presentes:
-            _vistos.pop(clave, None)
+        if res:
+            resultados.extend(res)
+            if p.parent != config.ENTRADA_DIR:
+                carpetas.add(p.parent)
+    for c in carpetas:             # subcarpeta ya vacía: se quita para no confundir
+        try:
+            c.rmdir()
+        except OSError:
+            pass
+    for registro in (_vistos, _atascados):
+        for clave in list(registro):
+            if clave not in presentes:
+                registro.pop(clave, None)
     return resultados
 
 
-def _revisar_archivo(p: Path, exigir_estable: bool) -> ingesta.ResultadoCarga | None:
+def _revisar_archivo(p: Path, exigir_estable: bool) -> list[ingesta.ResultadoCarga] | None:
     clave = str(p)
     try:
         st = p.stat()
     except OSError:
         return None
     firma = (st.st_size, st.st_mtime)
+    if _atascados.get(clave) == firma:
+        return None
+    # Antigüedad desde la última escritura. Una fecha en el futuro (reloj desfasado, o archivos
+    # descomprimidos de un .zip que conserva la hora de otra zona) no es una copia en curso:
+    # cuenta como antigua; la estabilidad del tamaño entre dos revisiones sigue exigiéndose.
+    edad = time.time() - st.st_mtime
+    reciente = 0 <= edad
     if exigir_estable:
-        if _vistos.get(clave) != firma or time.time() - st.st_mtime < 2:
+        if _vistos.get(clave) != firma or (reciente and edad < 2):
             _vistos[clave] = firma
             return None
     _vistos.pop(clave, None)
 
-    if exigir_estable and time.time() - st.st_mtime < _ESPERA_COPIA_SEG:
+    if exigir_estable and reciente and edad < _ESPERA_COPIA_SEG:
         previos = {m.codigo for m in lector.inspeccionar_archivo(p) if m.nivel == "error"}
         if previos & _TRANSITORIOS:
             _vistos[clave] = firma
             return None
 
-    res = ingesta.procesar_archivo(p, p.name, origen="carpeta")
-    destino = _destino(
-        config.PROCESADOS_DIR if res.resultado in ("aceptado", "reemplazo", "duplicado")
-        else config.RECHAZADOS_DIR, p.name)
+    lote = paquetes.procesar_entrada(p, p.name, origen="carpeta")
+    algo_entro = any(r.resultado in ("aceptado", "reemplazo", "duplicado") for r in lote)
+    destino = _destino(config.PROCESADOS_DIR if algo_entro else config.RECHAZADOS_DIR, p.name)
     try:
         p.replace(destino)
-    except OSError:
-        log.exception("No se pudo mover %s a %s", p, destino)
-        return res
-    if not res.cargado and res.resultado != "duplicado":
-        lineas = [f"Archivo: {p.name}", f"Resultado: {res.resultado.upper()}",
-                  f"Motivo: {res.mensaje}", ""]
-        lineas += [f"- [{m['nivel']}] {m['texto']}" for m in res.mensajes]
+    except OSError as exc:
+        _atascados[clave] = firma
+        log.warning("Se procesó %s pero no se pudo mover a %s (%s). No se volverá a procesar "
+                    "mientras no cambie.", p.name, destino.parent.name, exc)
+        _avisar_no_movible(p, exc)
+        return lote
+    problemas = [r for r in lote if not r.cargado and r.resultado != "duplicado"]
+    if problemas:
+        lineas = [f"Archivo: {p.name}", ""]
+        for res in problemas:
+            if len(lote) > 1:
+                lineas.append(f"== {res.archivo}")
+            lineas += [f"Resultado: {res.resultado.upper()}", f"Motivo: {res.mensaje}"]
+            lineas += [f"- [{m['nivel']}] {m['texto']}" for m in res.mensajes if m["nivel"] != "info"]
+            lineas.append("")
         try:
             destino.with_name(destino.name + ".motivo.txt").write_text(
                 "\r\n".join(lineas), encoding="utf-8")
         except OSError:
             pass
-    return res
+    return lote
+
+
+def _avisar_no_movible(p: Path, exc: OSError) -> None:
+    """Deja un aviso visible en entrada/rechazados (una vez por carpeta)."""
+    carpeta = p.parent
+    nombre = "entrada" if carpeta == config.ENTRADA_DIR else carpeta.name
+    aviso = config.RECHAZADOS_DIR / f"_AVISO_no_se_pudo_mover_{nombre}.txt"
+    try:
+        config.RECHAZADOS_DIR.mkdir(parents=True, exist_ok=True)
+        if aviso.exists():
+            return
+        aviso.write_text(
+            f"Los archivos de la carpeta «{nombre}» se procesaron (vea el resultado en «Cargar "
+            "reportes» → bitácora), pero el sistema no pudo moverlos a procesados/ o rechazados/ "
+            f"porque no tiene permiso de escritura en esa carpeta ({exc.strerror}).\r\n\r\n"
+            "No se volverán a procesar mientras no cambien. Puede borrarlos usted, o dar permiso "
+            "de escritura a la carpeta (en Linux: chmod a+rwx) para que el sistema los ordene.\r\n",
+            encoding="utf-8")
+    except OSError:
+        pass
 
 
 def iniciar(detener: threading.Event) -> threading.Thread | None:

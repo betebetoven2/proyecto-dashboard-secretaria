@@ -57,12 +57,19 @@ Sobre z = log(1 + asignados):
 
 Uso para planificación
 ----------------------
-- secciones sugeridas = el mayor entre (a) las secciones de hoy escaladas por el
-  crecimiento esperado (conserva el tamaño promedio de sección actual, que ya
-  refleja jornadas y horarios) y (b) ⌈escenario alto / cupo típico por sección⌉
-  (mínimo físico). Comparadas con las abiertas en el último año, dan el número
-  para pedir catedráticos, auxiliares y salones;
-- probabilidad de sobrecupo = P(demanda > cupo actual del curso).
+- secciones sugeridas = secciones de hoy + una por cada cupo de sección COMPLETO
+  de demanda que se espera ganar (o − una por cada cupo completo que se espera
+  perder):
+
+      sugeridas = abiertas + trunc((predicción − asignados hoy) / cupo típico por sección)
+
+  La oferta de secciones es muy estable año con año: con los reportes reales de
+  2021-2026, «las mismas secciones del año pasado» acierta mejor que escalar las
+  secciones por el crecimiento o que cubrir el escenario alto (que sugería 150-400
+  secciones de más). Esta regla conserva esa estabilidad y solo propone cambios
+  cuando la demanda esperada llena o vacía una sección entera;
+- probabilidad de sobrecupo = P(demanda > cupo actual del curso): señala los
+  cursos donde hará falta más cupo (más secciones o un límite mayor).
 
 Sin dependencias externas: solo la biblioteca estándar de Python.
 """
@@ -230,12 +237,10 @@ def pronosticar(modelo: Modelo, serie: Serie, anio_objetivo: int) -> dict | None
     out["cupo_actual"] = cupo
     out["cupo_por_seccion"] = cupo_seccion
     if cupo_seccion:
-        # (a) al ritmo actual: conserva el tamaño promedio de sección de hoy, que ya refleja
-        #     restricciones reales (jornadas, horarios, laboratorios);
-        # (b) mínimo físico: las secciones que exige el cupo en el escenario alto.
-        ritmo = round(abiertas * p50 / serie.puntos[ultimo]) if abiertas and serie.puntos[ultimo] else 0
-        minimo = math.ceil(alto / cupo_seccion) if alto >= 1 else 0
-        out["secciones_sugeridas"] = max(ritmo, minimo, 1 if p50 >= 1 else 0)
+        # Incremental: se conserva la oferta actual y solo se agrega (o quita) una sección
+        # por cada cupo completo de demanda que se espera ganar (o perder). Ver docstring.
+        cambio = int((p50 - serie.puntos[ultimo]) / cupo_seccion)
+        out["secciones_sugeridas"] = max(abiertas + cambio, 1 if p50 >= 1 else 0)
         out["cambio_secciones"] = out["secciones_sugeridas"] - abiertas
     else:
         out["secciones_sugeridas"] = None

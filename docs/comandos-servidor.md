@@ -64,7 +64,7 @@ Esperar a que `docker compose ps` muestre **`Up … (healthy)`** (unos 20 segund
 docker compose exec app python -m backend.app.autoprueba
 ```
 
-Debe terminar con: **`Instalación verificada: 16/16 comprobaciones correctas.`**
+Debe terminar con: **`Instalación verificada: 18/18 comprobaciones correctas.`**
 (Usa datos de prueba en una carpeta temporal; no toca los datos reales.)
 
 Abrir en el navegador del servidor: **http://localhost:8000**
@@ -106,8 +106,9 @@ El contenedor ya tiene `restart: unless-stopped`; solo falta que Docker arranque
 1. En el sistema de Centro de Cálculo → *Contadores asignados (Condensado)* → elegir Año y Período →
    descargar en Excel. Repetir para **varios años del mismo período** (p. ej. Primer Semestre 2021–2026)
    para habilitar las predicciones.
-2. En el tablero: **Cargar reportes** → arrastrar todos los archivos juntos.
-   *(Alternativa: copiarlos a la carpeta `entrada` dentro de `proyecto-dashboard-secretaria`.)*
+2. En el tablero: **Cargar reportes** → arrastrar todos los archivos juntos, **o un solo .zip** con todos
+   (p. ej. `semestre_2021_a_2026.zip`): cada reporte de adentro se valida y carga por separado.
+   *(Alternativa: copiar los .xlsx o el .zip a la carpeta `entrada` dentro de `proyecto-dashboard-secretaria`.)*
 3. Revisar que cada archivo diga «Cargado». Luego **Tablero** → pestañas.
 
 ## 8. Respaldo

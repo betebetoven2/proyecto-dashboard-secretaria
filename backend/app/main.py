@@ -24,7 +24,7 @@ from fastapi import Depends, FastAPI, File, Header, HTTPException, Query, Reques
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import config, db, ingesta, queries, vigilante
+from . import config, db, ingesta, paquetes, queries, vigilante
 from .queries import Filtros
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -99,6 +99,7 @@ def api_salud(c=Depends(con)):
     snaps = queries.snapshots(c)
     return {"estado": "ok", "version": config.VERSION, "snapshots": len(snaps),
             "requiere_token": bool(config.ADMIN_TOKEN), "max_mb": config.MAX_MB,
+            "max_paquete_mb": config.MAX_PAQUETE_MB,
             "carpeta_entrada_activa": config.INTERVALO_ENTRADA_SEG > 0,
             "intervalo_entrada_seg": config.INTERVALO_ENTRADA_SEG,
             "escuela_foco": config.ESCUELA_FOCO}
@@ -319,10 +320,10 @@ def api_powerbi(tabla: str, c=Depends(con)):
 # Carga de reportes (R1-15) y administración
 # ═══════════════════════════════════════════════════════════════════════════
 @app.post("/api/cargas", tags=["cargas"], dependencies=[Depends(requiere_admin)])
-async def api_subir(archivos: list[UploadFile] = File(..., description="Uno o más .xlsx")):
-    """Sube uno o varios reportes. Cada archivo se valida y carga por separado; la
-    respuesta trae el resultado de cada uno (aceptado, reemplazo, duplicado, vacío
-    o rechazado con sus motivos)."""
+async def api_subir(archivos: list[UploadFile] = File(..., description="Uno o más .xlsx, o .zip con reportes")):
+    """Sube uno o varios reportes (o paquetes .zip con varios). Cada reporte se valida y
+    carga por separado; la respuesta trae el resultado de cada uno (aceptado, reemplazo,
+    duplicado, vacío o rechazado con sus motivos)."""
     if len(archivos) > MAX_ARCHIVOS_POR_SUBIDA:
         raise HTTPException(413, f"Máximo {MAX_ARCHIVOS_POR_SUBIDA} archivos por subida.")
     tmp_dir = config.DATA_DIR / "tmp"
@@ -330,12 +331,15 @@ async def api_subir(archivos: list[UploadFile] = File(..., description="Uno o m�
     resultados = []
     for up in archivos:
         nombre = ingesta.nombre_seguro(up.filename)
+        es_zip = nombre.lower().endswith(".zip")
+        maximo, maximo_mb = ((config.MAX_PAQUETE_BYTES, config.MAX_PAQUETE_MB) if es_zip
+                             else (config.MAX_BYTES, config.MAX_MB))
         with tempfile.NamedTemporaryFile(dir=tmp_dir, suffix=".upload", delete=False) as tmp:
             ruta = Path(tmp.name)
             leidos, excedido = 0, False
             while bloque := await up.read(1 << 20):
                 leidos += len(bloque)
-                if leidos > config.MAX_BYTES:
+                if leidos > maximo:
                     excedido = True
                     break
                 tmp.write(bloque)
@@ -343,11 +347,12 @@ async def api_subir(archivos: list[UploadFile] = File(..., description="Uno o m�
             if excedido:
                 res = ingesta.ResultadoCarga(
                     "rechazado", nombre,
-                    f"El archivo excede el máximo de {config.MAX_MB:g} MB.")
+                    f"El archivo excede el máximo de {maximo_mb:g} MB.")
                 ingesta._cerrar(res, 0.0, "web", True)
+                resultados.append(res.a_dict())
             else:
-                res = await _en_hilo(ingesta.procesar_archivo, ruta, nombre, "web")
-            resultados.append(res.a_dict())
+                lote = await _en_hilo(paquetes.procesar_entrada, ruta, nombre, "web")
+                resultados.extend(r.a_dict() for r in lote)
         finally:
             ruta.unlink(missing_ok=True)
             await up.close()

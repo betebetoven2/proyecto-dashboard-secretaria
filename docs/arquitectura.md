@@ -1,6 +1,6 @@
 # Documentación técnica
 
-Dashboard de Asignados · Secretaría Académica ECYS · versión 1.1.0
+Dashboard de Asignados · Secretaría Académica ECYS · versión 1.2.0
 
 ## 1. Vista general
 
@@ -47,6 +47,8 @@ de datos aparte). El tablero funciona en la red interna sin Internet.
 ## 3. Pipeline de ingesta
 
 ```
+¿.zip con reportes? ──sí──► paquetes.py: cada .xlsx de adentro entra por separado al flujo de abajo
+                            (resultado propio por reporte; ver §4.4)
 archivo ─► SHA-256 ─► ¿ya existe ese SHA? ──sí──► DUPLICADO (nada cambia)
                             │ no
                             ▼
@@ -94,6 +96,8 @@ El XML interno se lee con `defusedxml` (protección contra entidades maliciosas)
 | `faltan_columnas` | error | falta una columna obligatoria (dice cuál) |
 | `columna_nueva` | advertencia | columna no reconocida: se ignora |
 | `sin_membrete` / `membrete_ilegible` / `membretes_distintos` | error | no se puede identificar período/año/corte, o las hojas no coinciden |
+| `membretes_minutos` | info | las hojas difieren solo en la hora (≤ 60 min, mismo período y año): Centro de Cálculo genera cada hoja por separado; se toma la hora más reciente como corte |
+| `archivo_recortado` | error | una hoja trae la marca de recorte de otra herramienta (p. ej. «… (truncated at 1000 rows)»): el reporte está incompleto |
 | `periodo_desconocido` | advertencia | período fuera del catálogo de 21 |
 | `corte_futuro` / `anio_inusual` | advertencia | fechas incoherentes |
 | `valor_no_numerico` / `valor_negativo` | error | cantidades inválidas (indica hoja y fila) |
@@ -110,6 +114,20 @@ El XML interno se lee con `defusedxml` (protección contra entidades maliciosas)
   (Windows reserva el tamaño final antes de terminar de copiar).
 - Se ignoran `~$*.xlsx` (Excel abierto), `.crdownload`, `.part`, `.tmp`, `.txt`.
 - Un archivo problemático nunca detiene el procesamiento de los demás.
+- También se procesan los archivos de subcarpetas de primer nivel (la carpeta que queda al descomprimir un
+  .zip ahí) y los .zip; nunca `procesados/`, `rechazados/` ni `respaldos/`. Una subcarpeta que queda vacía
+  se retira.
+
+### 4.4 Paquetes .zip (`paquetes.py`)
+
+- Un .zip común (que no es un .xlsx) se abre y cada miembro `.xlsx` pasa por el pipeline completo; el
+  nombre visible es `paquete.zip › reporte.xlsx`. Se cargan en orden de nombre.
+- Se ignoran carpetas y basura de sistema (`__MACOSX`, `.DS_Store`, `~$*`); otros archivos y .zip anidados
+  se informan como rechazados.
+- Nunca se extrae con la ruta del miembro (sin *zip slip*): cada miembro se copia a un temporal propio,
+  leyendo por bloques con tope `MAX_MB` (no se confía en el tamaño declarado).
+- Topes: 400 archivos por paquete, `MAX_DESCOMPRIMIDO_MB` en total, `MAX_PAQUETE_MB` (200) por subida.
+- Un respaldo del propio sistema (trae `asignados.db`) se reconoce y se indica usar `restaurar`.
 
 ## 5. Reglas de limpieza y normalización
 
@@ -176,6 +194,7 @@ viejo de 2023 no cambia lo que la Secretaría ve al abrir.
 | `backend/app/db.py` | Esquema, conexión |
 | `backend/app/ingesta.py` | Pipeline, archivo de originales, eliminación, reproceso, respaldo |
 | `backend/app/vigilante.py` | Carpeta de entrada |
+| `backend/app/paquetes.py` | Paquetes .zip con varios reportes (subida, carpeta y consola) |
 | `backend/app/queries.py` | Consultas del tablero y contrato Power BI |
 | `backend/app/main.py` | API y páginas |
 | `backend/app/etl.py` | Consola |
@@ -198,7 +217,7 @@ modalidad, edificio, estado, estado_gestion, docente, codigo, q`. Documentación
 | `GET /api/export/predicciones.csv` | predicciones en CSV |
 | `GET /api/export.csv`, `/api/export/gestiones.csv` | exportación |
 | `GET /api/powerbi`, `/api/powerbi/{tabla}.csv` | contrato de datos |
-| `POST /api/cargas` 🔒 | subir 1–30 archivos (multipart, campo `archivos`) |
+| `POST /api/cargas` 🔒 | subir 1–30 archivos .xlsx o .zip (multipart, campo `archivos`); un .zip devuelve un resultado por reporte |
 | `GET /api/cargas` | bitácora |
 | `POST /api/cargas/revisar-carpeta` 🔒 | procesar `entrada/` ya |
 | `DELETE /api/snapshots/{id}` 🔒 | quitar del tablero (el original queda archivado) |
@@ -216,7 +235,7 @@ modalidad, edificio, estado, estado_gestion, docente, codigo, q`. Documentación
 - Restauración de respaldos con lista blanca de rutas (evita *zip slip*).
 - CSV protegidos contra inyección de fórmulas (`=`, `+`, `-`, `@`).
 - Consultas SQL parametrizadas; columnas dinámicas solo desde listas blancas.
-- Límite de 30 archivos y `MAX_MB` por archivo por subida.
+- Límite de 30 archivos y `MAX_MB` por archivo por subida; `MAX_PAQUETE_MB` por .zip, con los topes de §4.4.
 
 ## 10. Pruebas
 
@@ -231,7 +250,10 @@ python -m pytest
 | `test_ingesta.py` | duplicado, reemplazo, cortes, archivo, reproceso, esquema, reclasificación, concurrencia, carpeta, permisos, respaldo |
 | `test_api.py` | todos los endpoints con y sin filtros, token, exportación, gestiones, tiempos, evolución |
 | `test_catalogos.py` | 21 períodos y precisión de la heurística (≥ 90%) |
-| `test_predicciones.py` | calibración de intervalos por simulación, mejora sobre el ingenuo, recuperación de parámetros, validación móvil, cursos nuevos/discontinuados, ceros, aislamiento por tipo de período y de documento, formatos mezclados, último corte por año |
+| `test_predicciones.py` | calibración de intervalos por simulación, mejora sobre el ingenuo, recuperación de parámetros, validación móvil, cursos nuevos/discontinuados, ceros, aislamiento por tipo de período y de documento, formatos mezclados, último corte por año, secciones sugeridas incrementales |
+| `test_paquetes.py` | .zip por web, carpeta y consola; basura de sistema, .zip anidado, respaldo, zip dañado, miembro grande, reporte recortado adentro, subcarpeta descomprimida en `entrada/` |
+
+En total 123 pruebas.
 
 Además: `python -m backend.app.autoprueba` (verificación de la instalación) y el flujo de GitHub Actions
 `docs/ci/ci.yml` (cópielo a `.github/workflows/` para activarlo), que construye la imagen oficial, levanta `docker compose`, sube los reportes

@@ -11,7 +11,7 @@ name: dashboard-asignados
 services:
   app:
     build: .
-    image: dashboard-asignados:1.1.0
+    image: dashboard-asignados:1.2.0
     container_name: dashboard-asignados
     restart: unless-stopped
     ports:
@@ -22,6 +22,7 @@ services:
       META_DIAS_ATENCION: ${META_DIAS_ATENCION:-6}
       UMBRAL_SECCION_GRANDE: ${UMBRAL_SECCION_GRANDE:-60}
       MAX_MB: ${MAX_MB:-25}
+      MAX_PAQUETE_MB: ${MAX_PAQUETE_MB:-200}
       INTERVALO_ENTRADA_SEG: ${INTERVALO_ENTRADA_SEG:-10}
       PRED_AMORTIGUAMIENTO: ${PRED_AMORTIGUAMIENTO:-0.9}
       PRED_NIVEL: ${PRED_NIVEL:-0.8}

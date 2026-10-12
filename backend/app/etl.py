@@ -1,7 +1,7 @@
 """
 Línea de comandos del ETL.
 
-    python -m backend.app.etl cargar archivo1.xlsx [archivo2.xlsx …]
+    python -m backend.app.etl cargar archivo1.xlsx [archivo2.xlsx …]   (o paquete.zip)
     python -m backend.app.etl carpeta          # procesa lo que haya en entrada/
     python -m backend.app.etl reprocesar       # reconstruye la base desde el archivo
     python -m backend.app.etl validar archivo.xlsx   # solo valida, no carga nada
@@ -19,7 +19,7 @@ import argparse
 import sys
 from pathlib import Path
 
-from . import db, ingesta, lector, privilegios, queries, vigilante
+from . import db, ingesta, lector, paquetes, privilegios, queries, vigilante
 
 ICONOS = {"aceptado": "✓", "reemplazo": "↻", "duplicado": "=", "vacio": "∅", "rechazado": "✗"}
 
@@ -36,7 +36,7 @@ def main(argv: list[str] | None = None) -> int:
     ap = argparse.ArgumentParser(prog="python -m backend.app.etl", description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     sub = ap.add_subparsers(dest="cmd")
-    p_cargar = sub.add_parser("cargar", help="carga uno o más .xlsx")
+    p_cargar = sub.add_parser("cargar", help="carga uno o más .xlsx o paquetes .zip")
     p_cargar.add_argument("archivos", nargs="+", type=Path)
     p_val = sub.add_parser("validar", help="valida sin cargar")
     p_val.add_argument("archivos", nargs="+", type=Path)
@@ -59,7 +59,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0 if all(r.resultado != "rechazado" for r in res) else 1
 
     if args.cmd == "cargar":
-        res = [ingesta.procesar_archivo(a, a.name, "consola") for a in args.archivos]
+        res = [r for a in args.archivos for r in paquetes.procesar_entrada(a, a.name, "consola")]
         for r in res:
             _imprimir(r)
         return 0 if all(r.resultado != "rechazado" for r in res) else 1

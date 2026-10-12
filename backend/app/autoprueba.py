@@ -251,6 +251,26 @@ def main() -> int:
         resultados.append(_chequeo("predicciones con 2 años del mismo período",
                                    r.cargado and pr["disponible"] and pr["anio_objetivo"] == 2027,
                                    f"{len(pr.get('cursos', []))} cursos pronosticados"))
+        import zipfile
+
+        from . import paquetes
+        paquete = f / "historia.zip"
+        with zipfile.ZipFile(paquete, "w", zipfile.ZIP_DEFLATED) as z:
+            for anio in (2023, 2024):
+                z.write(construir_reporte(f / f"{anio}_S1.xlsx", anio=anio, corte=datetime(anio, 9, 1)),
+                        f"historia/{anio}_S1.xlsx")
+        lote = paquetes.procesar_entrada(paquete, paquete.name, "autoprueba")
+        resultados.append(_chequeo("paquete .zip con varios reportes",
+                                   [x.resultado for x in lote] == ["aceptado", "aceptado"],
+                                   f"{len(lote)} reportes dentro del .zip"))
+        recortado = construir_reporte(f / "r.xlsx", anio=2022, corte=datetime(2022, 9, 1), sin_pie=True)
+        from openpyxl import load_workbook
+        wb = load_workbook(recortado)
+        wb["Clase"].cell(row=wb["Clase"].max_row + 1, column=1, value="... (truncated at 1000 rows)")
+        wb.save(recortado)
+        r = ingesta.procesar_archivo(recortado, recortado.name, "autoprueba")
+        resultados.append(_chequeo("reporte recortado por otra herramienta", r.resultado == "rechazado",
+                                   f"esperado rechazado, obtenido {r.resultado}"))
         resp = ingesta.respaldo()
         resultados.append(_chequeo("respaldo", resp.exists() and resp.stat().st_size > 0, resp.name))
 

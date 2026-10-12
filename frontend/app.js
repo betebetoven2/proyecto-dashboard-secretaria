@@ -300,11 +300,18 @@ async function renderPredicciones() {
   const r = p.resumen, v = p.validacion, m = p.modelo;
   const cambio = r.ultimo_valor ? (r.prediccion - r.ultimo_valor) / r.ultimo_valor : 0;
   const nivel = Math.round(m.nivel_intervalo * 100);
-  const validacionTxt = v.disponible
-    ? (v.error_relativo < 1
-      ? `${((1 - v.error_relativo) * 100).toFixed(0)}% menos error que repetir el año anterior`
-      : `no supera a «repetir el año anterior» (error relativo ${v.error_relativo})`)
-    : 'requiere 3 años o más';
+  // Honesto: < 0.95 mejora, 0.95–1.05 empata (dentro del ruido de pocos años), > 1.05 empeora.
+  const er = v.disponible ? Math.round(v.error_relativo * 100) / 100 : null;   // el mismo valor que se muestra
+  const veredicto = !v.disponible ? null : er < 0.95 ? 'mejor' : er <= 1.05 ? 'igual' : 'peor';
+  const errTipico = v.disponible && v.wape_modelo != null ? ` · error típico por curso ${(v.wape_modelo * 100).toFixed(0)}%` : '';
+  const validacionTxt = !v.disponible ? 'requiere 3 años o más'
+    : veredicto === 'mejor' ? `${((1 - v.error_relativo) * 100).toFixed(0)}% menos error que repetir el año anterior${errTipico}`
+    : veredicto === 'igual' ? `tan preciso como repetir el año anterior${errTipico}; su aporte es el intervalo y el riesgo`
+    : `menos preciso que repetir el año anterior${errTipico}; use el intervalo como rango`;
+  const tituloValidacion = !v.disponible ? 'Sin validar' : veredicto === 'mejor' ? '✓ Mejora' : veredicto === 'igual' ? '≈ Empata' : '! No mejora';
+  const aniosVistos = p.anios_base.map(a => a.anio);
+  const faltan = [];
+  for (let a = aniosVistos[0]; a < aniosVistos[aniosVistos.length - 1]; a++) if (!aniosVistos.includes(a)) faltan.push(a);
   const ordenar = { prediccion: c => -c.prediccion, cambio: c => -(c.cambio_secciones ?? -99), riesgo: c => -(c.prob_sobrecupo ?? -1), crecimiento: c => -c.crecimiento_anual };
   const cursos = [...p.cursos].sort((a, b) => ordenar[$('#f-orden-pred').value](a) - ordenar[$('#f-orden-pred').value](b));
   const total = state.filtros.escuela && p.totales[state.filtros.escuela] ? [state.filtros.escuela, p.totales[state.filtros.escuela]] : ['FACULTAD', p.totales.FACULTAD];
@@ -313,13 +320,14 @@ async function renderPredicciones() {
     <p class="note" style="margin:0 0 12px"><b>Qué se predice.</b> Asignados por curso en <b>${esc(p.periodo)} ${p.anio_objetivo}</b>,
       con base en ${p.anios_base.map(a => `${a.anio} (corte ${fechaHumana(a.fecha_corte).slice(0, 10)})`).join(', ')}.
       Solo se comparan reportes del mismo tipo de período. Si el último año todavía está en asignación, su dato está incompleto y la predicción saldrá baja.
+      ${faltan.length ? `<br><b>Falta${faltan.length > 1 ? 'n' : ''} ${faltan.join(', ')}</b>: el modelo lo tolera (mide el crecimiento por año transcurrido), pero cargarlo mejora la estimación.` : ''}
       ${p.filtros_ignorados.length ? `Los filtros de ${p.filtros_ignorados.join(', ')} no aplican aquí porque cambian de un año a otro.` : ''}</p>
     <div class="kpi-mini">
       <div class="card"><div class="k">Demanda esperada ${p.anio_objetivo}</div><div class="v">${num(r.prediccion)}</div><div class="d">${pctSigno(cambio)} frente a ${num(r.ultimo_valor)} en ${p.anios[p.anios.length - 1]} · ${num(r.cursos)} cursos</div></div>
       <div class="card"><div class="k">Secciones sugeridas</div><div class="v">${num(r.secciones_sugeridas)}</div><div class="d">frente a ${num(r.secciones_actuales)} abiertas hoy</div></div>
       <div class="card"><div class="k">Cursos que necesitan más secciones</div><div class="v">${num(r.abrir_mas)}</div><div class="d">${num(r.abrir_menos)} podrían abrir menos</div></div>
       <div class="card"><div class="k">Riesgo de sobrecupo</div><div class="v">${num(r.riesgo_sobrecupo)}</div><div class="d">cursos con probabilidad ≥ 50% de superar su cupo actual</div></div>
-      <div class="card"><div class="k">Validación del modelo</div><div class="v" style="font-size:16px">${v.disponible ? (v.error_relativo < 1 ? '✓ ' : '! ') + 'Probado' : 'Sin validar'}</div><div class="d">${validacionTxt}</div></div>
+      <div class="card"><div class="k">Validación del modelo</div><div class="v" style="font-size:16px">${tituloValidacion}</div><div class="d">${validacionTxt}</div></div>
     </div>
     <div class="grid two">
       <div class="card">
@@ -334,7 +342,7 @@ async function renderPredicciones() {
           <li><b>Crecimiento de cada curso</b> año contra año, en escala logarítmica.</li>
           <li>Cursos con poca historia se acercan al crecimiento de su escuela (<i>encogimiento empírico-bayesiano</i>, Efron y Morris). La columna «peso propio» dice cuánto pesa la historia del curso.</li>
           <li>La tendencia se <b>amortigua</b> (φ = ${m.amortiguamiento_phi}) para no proyectar una línea recta sin fin (Gardner y McKenzie).</li>
-          <li><b>Secciones sugeridas</b>: las de hoy escaladas por el crecimiento esperado (conserva el tamaño promedio actual) y nunca menos de las que exige el cupo en el escenario alto.</li>
+          <li><b>Secciones sugeridas</b>: las de hoy, más (o menos) una por cada cupo de sección completo de demanda que se espera ganar (o perder). La oferta de secciones es muy estable año con año; esta regla solo propone cambios cuando la demanda llena o vacía una sección entera.</li>
           <li><b>Validación</b>: se esconde cada año, se predice con los anteriores y se compara contra «igual que el año pasado».</li>
         </ul>
         <p class="hint" style="margin-top:8px">Ruido anual estimado ${(m.ruido_anual_sigma * 100).toFixed(1)}% · crecimiento global ${pctSigno(m.crecimiento_global_anual)} por año.</p>
@@ -346,6 +354,7 @@ async function renderPredicciones() {
         <p class="hint">Intervalo: rango donde caerá la demanda con ${nivel}% de probabilidad. Clic en un curso para ver sus secciones actuales.</p></div>
         <button class="btn" id="btn-export-pred">Exportar predicciones CSV</button></div>
       <div class="tablewrap" style="max-height:560px"><table id="tbl-pred"></table></div>
+      ${cursos.length > 300 ? `<p class="hint" style="margin:6px 0 0">Se muestran los primeros 300 de ${num(cursos.length)} cursos según el orden elegido. Use el buscador, los filtros o «Exportar predicciones CSV» para verlos todos.</p>` : ''}
     </div>
     ${v.disponible ? `<div class="card" style="margin-top:14px"><h2>Validación año por año</h2>
       <p class="hint">Error relativo &lt; 1: el modelo se equivocó menos que repetir el año anterior. Cobertura: proporción de cursos que cayeron dentro del intervalo (lo ideal es cerca de ${nivel}%).</p>

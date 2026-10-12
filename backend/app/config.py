@@ -64,6 +64,8 @@ ADMIN_TOKEN = os.environ.get("ADMIN_TOKEN", "").strip()
 #: Tamaño máximo por archivo subido. El reporte real más grande pesa ~165 KB.
 MAX_MB = _env_float("MAX_MB", 25.0)
 MAX_BYTES = int(MAX_MB * 1024 * 1024)
+MAX_PAQUETE_MB = _env_float("MAX_PAQUETE_MB", 200.0)      # un .zip con varios reportes
+MAX_PAQUETE_BYTES = int(MAX_PAQUETE_MB * 1024 * 1024)
 
 #: Tope de tamaño descomprimido (un .xlsx es un zip): defensa contra zip bombs.
 MAX_DESCOMPRIMIDO_BYTES = _env_int("MAX_DESCOMPRIMIDO_MB", 300) * 1024 * 1024
@@ -79,7 +81,7 @@ META_DIAS_ATENCION = _env_float("META_DIAS_ATENCION", 6.0)
 PRED_AMORTIGUAMIENTO = _env_float("PRED_AMORTIGUAMIENTO", 0.9)
 PRED_NIVEL = _env_float("PRED_NIVEL", 0.8)
 
-VERSION = "1.1.0"
+VERSION = "1.2.0"
 
 
 # ═══════════════════════════════════════════════════════════════════════════

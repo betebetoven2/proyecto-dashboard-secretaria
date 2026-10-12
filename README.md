@@ -12,7 +12,7 @@ copia a una carpeta) y el sistema los valida, los consolida y los muestra.
 git clone https://github.com/betebetoven2/proyecto-dashboard-secretaria.git
 cd proyecto-dashboard-secretaria
 docker compose up -d --build
-docker compose exec app python -m backend.app.autoprueba   # debe decir 16/16
+docker compose exec app python -m backend.app.autoprueba   # debe decir 18/18
 ```
 
 Abrir **http://localhost:8000** → **Cargar reportes** → arrastrar los archivos.
@@ -23,7 +23,7 @@ Guía completa (configuración, respaldo, actualización, solución de problemas
 
 | | |
 |---|---|
-| **Carga** | Arrastrar y soltar varios archivos, o copiarlos a `entrada/`. Cada archivo se valida por contenido (no por nombre), se verifica contra los totales del pie del reporte y recibe un resultado claro: cargado, ya estaba, reemplazó un corte, vacío o rechazado con el motivo. |
+| **Carga** | Arrastrar y soltar varios archivos o un **.zip** con toda la historia, o copiarlos a `entrada/`. Cada archivo se valida por contenido (no por nombre), se verifica contra los totales del pie del reporte y recibe un resultado claro: cargado, ya estaba, reemplazó un corte, vacío o rechazado con el motivo. |
 | **Períodos y cortes** | Los 21 períodos de Centro de Cálculo. Varias descargas del mismo período se guardan como cortes y habilitan evolución y tiempos de atención. |
 | **Vistas** | Resumen · Vista 1 Seguimiento de cursos · Vista 2 Estado de gestiones · Vista 3 Tiempos de atención · Predicciones · Docentes y auxiliares · Secciones. |
 | **Predicciones** | Demanda esperada por curso en el próximo período del mismo tipo, con intervalo, secciones sugeridas y riesgo de sobrecupo. Modelo empírico-bayesiano con tendencia amortiguada, validado contra el pasado. Ver [docs/predicciones.md](docs/predicciones.md). |

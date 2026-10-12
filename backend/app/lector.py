@@ -76,6 +76,11 @@ OBLIGATORIAS = [
 ]
 PROCEDENCIA = [c for c, _ in config.COLUMNAS_PROCEDENCIA]
 
+# Marca que dejan algunas herramientas de exportación cuando cortan una tabla larga
+# («... (truncated at 1000 rows)»). Un archivo así está incompleto.
+RE_RECORTE = re.compile(r"TRUNCAT|RECORTAD|FILAS OMITIDAS|ROWS OMITTED|MORE ROWS")
+TOLERANCIA_MEMBRETE_MIN = 60
+
 RE_MEMBRETE = re.compile(
     r"TOTAL DE ASIGNADOS\s+(?P<periodo>.+?)\s*-\s*(?P<anio>\d{4})\s*,?\s*"
     r"FECHA\s*/\s*HORA\s*:\s*(?P<d>\d{1,2})/(?P<m>\d{1,2})/(?P<y>\d{4})"
@@ -279,7 +284,9 @@ def inspeccionar_archivo(ruta: Path, nombre_original: str | None = None) -> list
 
     if "xl/workbook.xml" not in nombres:
         return [Mensaje("error", "zip_no_xlsx",
-                        "Es un archivo comprimido, pero no un libro de Excel (.xlsx).")]
+                        "Es un archivo comprimido (.zip), no un libro de Excel. Si trae reportes adentro, "
+                        "súbalo en «Cargar reportes» o cópielo a la carpeta de entrada: cada .xlsx "
+                        "de adentro se carga por separado.")]
     if descomprimido > config.MAX_DESCOMPRIMIDO_BYTES:
         return [Mensaje(
             "error", "zip_bomba",
@@ -374,6 +381,16 @@ def _leer_pie(fila: tuple) -> dict | None:
 def _parsear_hoja(rep: Reporte, ws, tipo: str) -> None:
     filas = list(ws.iter_rows(values_only=True))
     hoja = ws.title
+
+    for n_fila, fila in enumerate(filas, start=1):
+        for celda_txt in (fila or ())[:3]:
+            if isinstance(celda_txt, str) and RE_RECORTE.search(normalizar(celda_txt)):
+                rep.error("archivo_recortado",
+                          f"La hoja «{hoja}» está recortada: en la fila {n_fila} dice "
+                          f"«{limpiar_texto(celda_txt)}». Faltan secciones, así que el reporte "
+                          "está incompleto. Descárguelo de nuevo desde Centro de Cálculo, sin "
+                          "pasarlo por otra herramienta.", hoja, n_fila)
+                return
 
     i_enc = _localizar_encabezado(filas)
     pie = None
@@ -625,8 +642,40 @@ def leer_reporte(ruta: Path, nombre_original: str | None = None) -> Reporte:
     return rep
 
 
+def _momento(m: re.Match) -> datetime | None:
+    try:
+        return datetime(int(m.group("y")), int(m.group("m")), int(m.group("d")),
+                        int(m.group("h") or 0), int(m.group("mi") or 0))
+    except ValueError:
+        return None
+
+
+def _unificar_membretes(rep: Reporte, membretes: dict, textos: set) -> set:
+    """Centro de Cálculo genera cada hoja por separado: si la descarga cruza un cambio de
+    minuto, «Clase» dice 11:38 y «Laboratorio» 11:39. Es el mismo reporte cuando período y
+    año coinciden y las horas difieren poco; se toma la hora más reciente como corte."""
+    leidos = [(t, m) for t, m in membretes.values() if t and m]
+    if len(leidos) != len([t for t, _ in membretes.values() if t]):
+        return textos
+    claves = {(normalizar(m.group("periodo")).strip(), m.group("anio")) for _, m in leidos}
+    momentos = [_momento(m) for _, m in leidos]
+    if len(claves) != 1 or any(x is None for x in momentos):
+        return textos
+    diferencia = (max(momentos) - min(momentos)).total_seconds() / 60
+    if diferencia > TOLERANCIA_MEMBRETE_MIN:
+        return textos
+    texto = max(leidos, key=lambda tm: _momento(tm[1]))[0]
+    rep.info("membretes_minutos",
+             f"Las hojas se generaron con {int(diferencia)} min de diferencia "
+             f"({min(momentos):%H:%M} y {max(momentos):%H:%M}); se toma "
+             f"{max(momentos):%d/%m/%Y %H:%M} como hora del corte.")
+    return {normalizar(texto)}
+
+
 def _resolver_membrete(rep: Reporte, membretes: dict) -> None:
     textos = {normalizar(t) for t, _ in membretes.values() if t}
+    if len(textos) > 1:
+        textos = _unificar_membretes(rep, membretes, textos)
     if not textos:
         rep.error("sin_membrete",
                   "No se encontró la línea «TOTAL DE ASIGNADOS <PERÍODO> - <AÑO>, FECHA/HORA: …». "
@@ -638,7 +687,7 @@ def _resolver_membrete(rep: Reporte, membretes: dict) -> None:
                   + " | ".join(sorted(textos)))
         return
 
-    texto, m = next((t, m) for t, m in membretes.values() if t)
+    texto, m = next((t, m) for t, m in membretes.values() if t and normalizar(t) in textos)
     rep.encabezado = texto
     if not m:
         rep.error("membrete_ilegible",

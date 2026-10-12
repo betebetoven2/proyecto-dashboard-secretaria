@@ -31,7 +31,7 @@
 | Detalle técnico: *archivos CSV y hojas de cálculo como entrada* | Entrada: el .xlsx de Centro de Cálculo. Salida: CSV con procedencia | R1-11, R1-15 |
 | Producto: *dashboard de centralización* | `/` | — |
 | Producto: *modelo de datos y rutinas de carga documentadas* | `docs/arquitectura.md` | — |
-| Producto: *código fuente estructurado y documentado* | Repositorio + 106 pruebas automáticas | — |
+| Producto: *código fuente estructurado y documentado* | Repositorio + 123 pruebas automáticas | — |
 | Producto: *manual de usuario para la Secretaría* | `/manual` dentro del propio sistema | — |
 | Producto: *documentación técnica* | `docs/arquitectura.md`, `docs/instalacion.md`, `docs/powerbi.md` | — |
 
@@ -108,7 +108,7 @@ horarios que asigna la Facultad. Hoy lo resuelve abriendo el Excel y filtrando a
 
 | # | Act. | Historia | Justificación (con dato real) | Criterio de aceptación |
 |---|---|---|---|---|
-| **R1-15** | 0 | Como secretaria quiero **subir uno o varios reportes arrastrándolos** y saber de inmediato si se cargaron | Es la única forma en que el dato entra. Sin esto, cada actualización depende de un técnico | Cada archivo recibe un resultado: cargado, ya estaba, reemplazó un corte, vacío o rechazado **con el motivo en español** |
+| **R1-15** | 0 | Como secretaria quiero **subir uno o varios reportes arrastrándolos** y saber de inmediato si se cargaron | Es la única forma en que el dato entra. Sin esto, cada actualización depende de un técnico | Cada archivo recibe un resultado: cargado, ya estaba, reemplazó un corte, vacío o rechazado **con el motivo en español**. Un **.zip** con muchos reportes se carga de una vez y cada reporte de adentro recibe su propio resultado |
 | **R1-16** | 0 | Quiero **copiar los archivos a una carpeta** y que se carguen solos | Para cargas masivas o descargas automáticas | Lo cargado pasa a `procesados/`; lo rechazado a `rechazados/` con un `.txt` del motivo |
 | **R1-17** | G | Quiero **respaldar y restaurar** todo con un comando | El dato se acumula semestre a semestre; perderlo es perder el historial | Un zip con los originales reconstruye la base completa |
 | **R1-01** | A | Ver al abrir: asignaciones, ocupación, secciones abiertas y cerradas, secciones con gestiones pendientes, cobertura de auxiliares, con período y fecha de corte visibles | 2026-S1: 51.3% de ocupación del cupo abierto; 344 secciones con algún trámite pendiente | Los KPI cuadran con el pie del reporte (verificado en pruebas) |
@@ -125,7 +125,7 @@ horarios que asigna la Facultad. Hoy lo resuelve abriendo el Excel y filtrando a
 | **R1-12** | G | Saber siempre de qué archivo y corte viene lo que veo, y **descargar el original** | Trazabilidad | Visible en el encabezado |
 | **R1-13** | C | **Vista 2 · Estado de gestiones**: proporción al día / en revisión / pendiente por curso, y lista de trabajo | Es el boceto del perfil, alimentado con dato real | Exportable a CSV |
 | **R1-14** | A | **Vista 3 · Tiempos de atención**: días promedio por tipo de gestión contra la meta institucional | Boceto del perfil (meta de 6 días, configurable) | Con un solo corte, la vista explica qué falta en vez de mostrar ceros |
-| **R1-19** | B | **Predicciones**: demanda esperada de cada curso en el próximo período del mismo tipo, con intervalo, secciones sugeridas y probabilidad de sobrecupo | Abrir secciones se decide antes del período; hoy se decide mirando solo el anterior. El modelo comete 16% menos error que «repetir el año pasado» en simulación | Nunca mezcla tipos de período ni de documento; con < 2 años explica qué cargar; muestra su propia validación |
+| **R1-19** | B | **Predicciones**: demanda esperada de cada curso en el próximo período del mismo tipo, con intervalo, secciones sugeridas y probabilidad de sobrecupo | Abrir secciones se decide antes del período; hoy se decide mirando solo el anterior. En simulación comete 16% menos error que «repetir el año pasado»; con los reportes reales 2021–2026 empata con él (±5%) y sus intervalos del 80% cubren 78–83% de los cursos. Las secciones sugeridas se validaron contra las realmente abiertas | Nunca mezcla tipos de período ni de documento; con < 2 años explica qué cargar; muestra su propia validación |
 | **R1-18** | G | Entregar al equipo de Power BI **tablas planas por URL** (hechos y dimensiones) | El perfil nombra Power BI; otro integrante lo construye | `docs/powerbi.md` |
 
 ### Release 2 — siguiente iteración
@@ -200,7 +200,7 @@ automáticas.
 | R1-12 | `/api/snapshots/{id}/original` | encabezado | `test_original_y_eliminacion` |
 | R1-13 | `/api/gestiones` | Vista 2 | `test_estado_de_gestiones` |
 | R1-14 | `/api/tiempos` | Vista 3 | `test_tiempos_de_atencion_entre_cortes` |
-| R1-15 | `POST /api/cargas` | `/cargas` | `test_lector.py`, `test_subida_*` |
+| R1-15 | `POST /api/cargas` | `/cargas` | `test_lector.py`, `test_subida_*`, `test_paquetes.py` |
 | R1-16 | vigilante de carpeta | `entrada/` | `test_carpeta_de_entrada` |
 | R1-17 | `etl respaldo` / `restaurar` | consola | `test_respaldo_y_restauracion` |
 | R1-18 | `/api/powerbi/*` | — | `test_power_bi` |

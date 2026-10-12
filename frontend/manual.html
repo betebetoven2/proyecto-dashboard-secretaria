@@ -66,11 +66,14 @@
   <h3>Opción A — desde el navegador (la más simple)</h3>
   <ol>
     <li>Clic en <b>Cargar reportes</b> (botón azul arriba a la derecha).</li>
-    <li>Arrastre uno o varios archivos a la zona punteada, o haga clic en ella para elegirlos.</li>
+    <li>Arrastre uno o varios archivos a la zona punteada, o haga clic en ella para elegirlos. También puede soltar un
+      <b>.zip</b> con muchos reportes (por ejemplo, todos los semestres de varios años): cada archivo de adentro se
+      valida y se carga por separado, y cada uno muestra su propio resultado.</li>
     <li>Cada archivo muestra su resultado en segundos. Al terminar, el botón <b>Ver … en el tablero</b> lo lleva al reporte.</li>
   </ol>
   <h3>Opción B — copiando a la carpeta de entrada</h3>
-  <p>En el equipo donde está instalado el sistema, copie los archivos a la carpeta <code>entrada</code>. En unos segundos
+  <p>En el equipo donde está instalado el sistema, copie los archivos a la carpeta <code>entrada</code> (sueltos, dentro
+    de una subcarpeta, o como un <code>.zip</code>). En unos segundos
     desaparecen de ahí y pasan a <code>entrada\procesados</code> (cargados) o a <code>entrada\rechazados</code>, junto con un
     archivo <code>.txt</code> que explica por qué no se cargaron.</p>
   <h3>Si se equivocó de archivo</h3>
@@ -95,6 +98,7 @@
       <tr><td>«Excel antiguo (.xls) o protegido con contraseña»</td><td>Abra el archivo en Excel y use <i>Guardar como → Libro de Excel (.xlsx)</i>, sin contraseña.</td></tr>
       <tr><td>«no es un libro de Excel; parece texto o HTML»</td><td>Se descargó en otro formato. Descárguelo de nuevo en Excel.</td></tr>
       <tr><td>«dañado o incompleto»</td><td>La descarga se interrumpió. Descárguelo de nuevo.</td></tr>
+      <tr><td>«La hoja Clase está recortada… truncated at 1000 rows»</td><td>El archivo pasó por otra herramienta que lo cortó y le faltan secciones. Descárguelo de nuevo directamente de Centro de Cálculo.</td></tr>
       <tr><td>«La suma de asignados leída no coincide con el TOTAL del pie»</td><td>El archivo fue modificado después de descargarlo. Use el original de Centro de Cálculo.</td></tr>
       <tr><td>«Faltan columnas obligatorias» / «No se encontraron las hojas Clase ni Laboratorio»</td><td>No es el reporte de asignados condensado, o cambió de formato. Si es el reporte correcto, avise a soporte técnico.</td></tr>
       <tr><td>«Falta el token de administración»</td><td>Escriba el token en la tarjeta que aparece arriba en <b>Cargar reportes</b>.</td></tr>
@@ -175,7 +179,7 @@
       <tr><td><b>Intervalo 80%</b></td><td>Rango donde caerá la demanda 8 de cada 10 veces. Más años de historia = rango más estrecho.</td></tr>
       <tr><td><b>Crec. anual</b></td><td>Cuánto crece (o decrece) el curso por año, ya ajustado.</td></tr>
       <tr><td><b>Peso propio</b></td><td>Cuánto se basa en la historia del propio curso. Con poca historia, el sistema se apoya en lo que hace la escuela en general (0% = curso nuevo).</td></tr>
-      <tr><td><b>Secciones</b></td><td>Abiertas hoy → sugeridas. Mantiene el tamaño promedio de sección actual y nunca baja de lo que exige el cupo en el escenario alto.</td></tr>
+      <tr><td><b>Secciones</b></td><td>Abiertas hoy → sugeridas. Parte de las secciones actuales y suma (o quita) una por cada cupo de sección completo de demanda que se espera ganar (o perder). Si el curso puede rebasar su cupo, lo señala la columna de riesgo.</td></tr>
       <tr><td><b>P(sobrecupo)</b></td><td>Probabilidad de que la demanda supere el cupo actual del curso si no se abre nada nuevo.</td></tr>
       <tr><td><b>Confiabilidad</b></td><td>Alta, media o baja según los años de historia y lo estable del curso.</td></tr>
     </tbody>

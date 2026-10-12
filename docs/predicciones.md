@@ -1,6 +1,6 @@
 # Predicciones de demanda por curso
 
-Versión 1.1 · módulo `backend/app/predicciones.py` · vista **Predicciones** del tablero · `GET /api/predicciones`
+Versión 1.2 · módulo `backend/app/predicciones.py` · vista **Predicciones** del tablero · `GET /api/predicciones`
 
 ## 1. Para qué sirven (y para qué no)
 
@@ -113,13 +113,18 @@ P(sobrecupo) = 1 − Φ((log(1 + cupo_actual) − ẑ) / √Var)
 ### 3.6 Secciones sugeridas
 
 ```
-secciones = max( redondear(secciones_hoy × predicción / asignados_hoy),    # al ritmo actual
-                 ⌈escenario alto / cupo típico por sección⌉ )            # mínimo físico
+secciones = secciones_hoy + trunc( (predicción − asignados_hoy) / cupo típico por sección )
+            (nunca menos de 1 si se espera demanda)
 ```
 
-La primera parte conserva el **tamaño promedio de sección actual**, que ya refleja restricciones reales
-(jornadas, horarios, laboratorios); la segunda garantiza cupo para el escenario alto. Si la demanda baja,
-sugiere menos secciones; nunca menos de las que exige el cupo.
+Se parte de la oferta actual y solo se suma (o quita) una sección por cada **cupo de sección completo**
+de demanda que se espera ganar (o perder). La regla se eligió con los reportes reales 2021–2026
+comparando, año por año, lo sugerido contra las secciones que de verdad se abrieron (§4.3): la oferta de
+secciones es muy estable, y las reglas que escalaban las secciones con el crecimiento o cubrían el
+escenario alto del intervalo sugerían entre 150 y 400 secciones de más.
+
+Cuando un curso puede rebasar su cupo, la señal es la **probabilidad de sobrecupo** (§3.5): la decisión
+puede ser abrir otra sección o subir el límite, y eso lo resuelve la Secretaría.
 
 ### 3.7 Totales
 
@@ -156,11 +161,41 @@ Si el modelo no le gana al ingenuo, la vista lo dice.
 
 Además recupera los parámetros (σ estimado 0.104 para σ real 0.10; τ 0.045 para τ real ≈ 0.05).
 
-### 4.3 Con reportes reales de la Facultad
+### 4.3 Con los reportes reales de la Facultad (Primer y Segundo Semestre 2021–2026)
 
-Con el Primer Semestre 2026 real y tres años derivados de él para la prueba (no son datos reales de esos
-años), la validación año por año dio error relativo 0.81–0.86 y cobertura 80–91%. **La validación que
-cuenta es la que la vista calcula con los reportes históricos reales que se carguen.**
+Se cargaron los 12 reportes de 2021 a 2026. Los de 2024 venían recortados a 1000 filas por la herramienta
+que los generó y se rechazaron (§6); la validación usa 2021, 2022, 2023, 2025 y 2026 y evalúa 2023, 2025 y
+2026 (2025 se predice a dos años, desde 2023).
+
+| Período | Error relativo vs ingenuo | Error típico por curso (WAPE) | Ingenuo | Cobertura del intervalo 80% |
+|---|---|---|---|---|
+| Primer Semestre | 1.05 | 26% | 25% | 78% |
+| Segundo Semestre | 0.96 | 25% | 26% | 83% |
+
+**Lectura honesta.** A nivel de curso, la demanda de un semestre se comporta casi como un paseo aleatorio:
+el modelo **empata** con «igual que el año pasado» (±5%, dentro del ruido de tres años de prueba). Se
+probaron alternativas sobre los mismos datos (amortiguamiento 0.5, tendencia solo del último año,
+tendencia suavizada de Holt con β = 0.3–0.7, suavizado exponencial del nivel) y ninguna mejora de forma
+consistente en ambos semestres (rango 0.92–1.07); cambiar el modelo por esas diferencias sería ajustarse
+al ruido. El aporte del modelo en estos datos está en:
+
+- **Intervalos calibrados**: 78–83% de los cursos cayeron dentro del intervalo del 80%. Dicen cuánto
+  puede moverse cada curso, algo que «el año pasado» no dice.
+- **Riesgo de sobrecupo** por curso con el cupo actual.
+- **Secciones sugeridas** que siguen la demanda sin inventar cambios (§3.6).
+- **Totales** de Facultad y escuela con su rango.
+
+Las secciones sugeridas se validaron igual, contra las secciones realmente abiertas:
+
+| Regla | Error absoluto total (secciones, promedio de 6 evaluaciones) |
+|---|---|
+| Versión 1.1: máx(al ritmo, escenario alto / cupo) | ≈ 410 |
+| Al ritmo del crecimiento | ≈ 183 |
+| **Versión 1.2: incremental por cupos completos** | **≈ 130** |
+| «Las mismas del año pasado» | ≈ 130 |
+
+**La validación que cuenta es la que la vista calcula con los reportes que estén cargados**: se recalcula
+sola al agregar años.
 
 ## 5. Requisitos de datos
 
@@ -173,7 +208,8 @@ cuenta es la que la vista calcula con los reportes históricos reales que se car
 
 **Cómo conseguir la historia hoy mismo:** en el sistema de Centro de Cálculo, *Contadores asignados
 (Condensado)* permite elegir **cualquier año**. Descargue, por ejemplo, *01 : PRIMER SEMESTRE* de 2021 a
-2026 y *05 : SEGUNDO SEMESTRE* de 2021 a 2025, y cárguelos todos de una vez en **Cargar reportes**.
+2026 y *05 : SEGUNDO SEMESTRE* de 2021 a 2025, y cárguelos todos de una vez en **Cargar reportes** (sueltos o
+en un solo **.zip**).
 
 ## 6. Limitaciones
 
@@ -181,10 +217,16 @@ cuenta es la que la vista calcula con los reportes históricos reales que se car
   predicción saldrá baja. Use años cerrados o espere al corte final.
 - **Cambios de pensum o de código** (un curso que cambia de código) rompen la serie: el curso nuevo arranca
   sin historia y recibe el crecimiento de su escuela.
-- **Choques no recurrentes** (pandemia, cierres, cambios de reglamento) no se anticipan. Con muchos años de
-  historia, conviene excluirlos (no cargar ese año) si distorsionan.
+- **Choques no recurrentes** (pandemia, cierres, cambios de reglamento) no se anticipan. En los datos reales,
+  2021–2022 (clases virtuales) tienen 46–52 mil asignados por semestre y 2025–2026, 35–41 mil: esa caída
+  pesa en el crecimiento estimado de la Facultad (−5% anual), aunque 2025→2026 subió. El intervalo lo
+  refleja. Si la Secretaría considera que esos años ya no representan la situación, puede eliminarlos del
+  tablero en «Cargar reportes» y la predicción se recalcula.
+- **Archivos incompletos**: un reporte recortado por otra herramienta (p. ej. «truncated at 1000 rows»)
+  se rechaza al cargarlo; si se cargara, el modelo creería que los cursos que faltan dejaron de ofrecerse.
+  Faltar un año completo no es problema: el crecimiento se mide por año transcurrido.
 - **Los cursos no ofertados el último año** no se predicen (se listan aparte).
-- **Las secciones sugeridas** no consideran jornadas ni horarios: son un piso informado, no un horario.
+- **Las secciones sugeridas** no consideran jornadas ni horarios: son un punto de partida, no un horario.
 
 ## 7. Configuración
 

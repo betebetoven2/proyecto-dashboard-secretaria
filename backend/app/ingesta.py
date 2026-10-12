@@ -273,8 +273,10 @@ def _procesar(ruta: Path, nombre: str, origen: str, sha: str, tam: int) -> Resul
     return ResultadoCarga(
         "aceptado",
         mensaje=(f"Cargado {rep.descripcion}: {len(rep.secciones):,} secciones, "
-                 f"{rep.total_asignados:,} asignados. Totales verificados contra el pie "
-                 f"del reporte.{sufijo}"),
+                 f"{rep.total_asignados:,} asignados. "
+                 + ("Totales verificados contra el pie del reporte."
+                    if rep.control else "El reporte no trae pie de totales para verificar.")
+                 + sufijo),
         snapshot_id=snap_id, descripcion=rep.descripcion, secciones=len(rep.secciones),
         asignados=rep.total_asignados, mensajes=mensajes, **base)
 

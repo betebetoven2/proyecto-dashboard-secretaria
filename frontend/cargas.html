@@ -35,12 +35,12 @@
   <section class="card">
     <h2>Subir reportes de asignados <span class="story">R1-15</span></h2>
     <p class="hint">El reporte «Contadores asignados (Condensado)» de Centro de Cálculo, en Excel. Puede soltar varios a la vez,
-      de cualquier período y año: el sistema lee el período y la fecha de corte de cada archivo; el nombre del archivo no importa.</p>
+      de cualquier período y año, o un <b>.zip</b> con toda la historia: el sistema lee el período y la fecha de corte de cada archivo; el nombre del archivo no importa.</p>
     <div class="dropzone" id="dropzone" tabindex="0" role="button" aria-label="Elegir archivos para subir">
       <div class="icon">⇪</div>
-      <div class="big">Suelte aquí los archivos .xlsx</div>
-      <div class="small">o haga clic para elegirlos · máximo <span id="max-mb">25</span> MB por archivo</div>
-      <input type="file" id="archivo" accept=".xlsx,.xlsm,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" multiple hidden>
+      <div class="big">Suelte aquí los archivos .xlsx o un .zip con varios</div>
+      <div class="small">o haga clic para elegirlos · máximo <span id="max-mb">25</span> MB por reporte y <span id="max-paquete-mb">200</span> MB por .zip</div>
+      <input type="file" id="archivo" accept=".xlsx,.xlsm,.zip,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,application/zip" multiple hidden>
     </div>
     <div id="resultados" aria-live="polite"></div>
     <div id="siguiente" style="margin-top:12px" hidden></div>
@@ -50,7 +50,7 @@
     <div class="card">
       <h2>Otra forma: carpeta de entrada</h2>
       <p class="hint" style="margin-bottom:8px">Útil para cargar muchos archivos o automatizar la descarga.</p>
-      <p style="margin:0 0 8px">Copie los .xlsx a la carpeta <code>entrada</code> que está junto al archivo
+      <p style="margin:0 0 8px">Copie los .xlsx (sueltos, en una subcarpeta o en un .zip) a la carpeta <code>entrada</code> que está junto al archivo
         <code>docker-compose.yml</code> en el equipo servidor. Cada <b id="intervalo">10</b> segundos el sistema la revisa,
         carga lo que encuentre y mueve cada archivo a <code>entrada/procesados</code> o a <code>entrada/rechazados</code>
         (con un <code>.txt</code> que explica el motivo).</p>
@@ -60,7 +60,8 @@
     <div class="card">
       <h2>Qué se revisa en cada archivo</h2>
       <ul class="reglas" style="margin:6px 0 0;padding-left:18px">
-        <li>Que sea un Excel <b>.xlsx</b> real (no .xls antiguo, ni protegido con contraseña, ni CSV renombrado).</li>
+        <li>Que sea un Excel <b>.xlsx</b> real (no .xls antiguo, ni protegido con contraseña, ni CSV renombrado). En un <b>.zip</b>, cada .xlsx se revisa por separado.</li>
+        <li>Que no esté <b>recortado</b> por otra herramienta (p. ej. «truncated at 1000 rows»): un reporte incompleto se rechaza.</li>
         <li>Que traiga las hojas <b>Clase</b> y/o <b>Laboratorio</b> y las columnas del reporte.</li>
         <li>El <b>período, año y fecha de corte</b> del membrete, contra los 21 períodos de Centro de Cálculo.</li>
         <li>Que la suma de asignados cuadre con los <b>totales de control</b> del pie (TOTAL REG / TOTAL).</li>

@@ -6,7 +6,7 @@ let salud = null;
 
 function tarjeta(nombre, res) {
   const r = res?.resultado || 'procesando';
-  const mensajes = (res?.mensajes || []).filter(m => m.nivel !== 'info');
+  const mensajes = (res?.mensajes || []).filter(m => m.nivel !== 'info' && m.texto !== res?.mensaje);
   return `<div class="resultado ${r}">
     <div class="icono" aria-hidden="true">${ICONO[r] || '?'}</div>
     <div>
@@ -27,15 +27,24 @@ async function subir(archivos) {
   for (let i = 0; i < lista.length; i++) {                       // de a uno: progreso visible por archivo
     const fd = new FormData();
     fd.append('archivos', lista[i], lista[i].name);
-    let res;
+    let rs;
     try {
       const r = await api('/api/cargas', { metodo: 'POST', cuerpo: fd, admin: true });
-      res = r.resultados[0];
+      rs = r.resultados;
     } catch (e) {
-      res = { resultado: 'rechazado', mensaje: e.status === 401 ? 'Falta el token de administración o es incorrecto (arriba).' : e.status === 413 ? 'El archivo es demasiado grande para el servidor.' : `No se pudo subir: ${e.message}` };
+      rs = [{ resultado: 'rechazado', mensaje: e.status === 401 ? 'Falta el token de administración o es incorrecto (arriba).' : e.status === 413 ? 'El archivo es demasiado grande para el servidor.' : `No se pudo subir: ${e.message}` }];
     }
-    document.getElementById(ids[i]).innerHTML = tarjeta(lista[i].name, res);
-    if (res.cargado || res.resultado === 'duplicado') cargados.push(res);
+    const esPaquete = rs.length > 1 || /\.zip$/i.test(lista[i].name);
+    if (esPaquete) {                                               // un .zip: una tarjeta por reporte de adentro
+      const cuenta = r => rs.filter(x => x.resultado === r).length;
+      const partes = [['aceptado', 'cargados'], ['reemplazo', 'reemplazaron un corte'], ['duplicado', 'ya estaban'], ['vacio', 'vacíos'], ['rechazado', 'rechazados']]
+        .filter(([r]) => cuenta(r)).map(([r, t]) => `${cuenta(r)} ${t}`);
+      document.getElementById(ids[i]).innerHTML = `<div class="note" style="margin:8px 0 4px"><b>${esc(lista[i].name)}</b>: ${rs.length} reporte${rs.length === 1 ? '' : 's'} · ${partes.join(' · ')}</div>`
+        + rs.map(x => tarjeta(x.archivo ? x.archivo.split(' › ').pop() : lista[i].name, x)).join('');
+    } else {
+      document.getElementById(ids[i]).innerHTML = tarjeta(lista[i].name, rs[0]);
+    }
+    rs.forEach(res => { if (res.cargado || res.resultado === 'duplicado') cargados.push(res); });
   }
   if (cargados.length) {
     const ultimo = cargados[cargados.length - 1];
@@ -122,6 +131,7 @@ function conectar() {
   try {
     salud = await api('/api/salud');
     $('#max-mb').textContent = salud.max_mb;
+    if (salud.max_paquete_mb) $('#max-paquete-mb').textContent = salud.max_paquete_mb;
     $('#intervalo').textContent = salud.intervalo_entrada_seg;
     if (salud.requiere_token) {
       $('#token-card').hidden = false;

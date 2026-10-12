@@ -351,4 +351,7 @@ code, kbd { font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font
   .viewtabs { margin: 0 -16px 16px; padding: 8px 16px 0; }
   .selector-corte .field, .filters .field { flex: 1 1 140px; }
   .selector-corte .field select, .filters select { max-width: 100%; width: 100%; }
+  .card-head { flex-wrap: wrap; }
+  .card-head .field { flex: 1 1 100%; min-width: 0; }
+  .card-head .field select { max-width: 100%; width: 100%; }
 }

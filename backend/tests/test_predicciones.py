@@ -110,8 +110,28 @@ def test_secciones_sugeridas_y_probabilidad_de_sobrecupo():
                    asignados=50 + i, abiertas=1, cupo=60, limites="60")
               for a in (2022, 2023, 2024, 2025) for i in range(3)]
     c = next(x for x in P.predecir(filas)["cursos"] if x["codigo"] == "X")
-    assert c["secciones_sugeridas"] >= 3 and c["cambio_secciones"] >= 1     # 125 ya excede 2×50
-    assert c["prob_sobrecupo"] > 0.9
+    # incremental: solo cambia por cupos de sección completos de demanda nueva
+    assert c["cambio_secciones"] == int((c["prediccion"] - 125) / 50)
+    assert c["secciones_sugeridas"] == 2 + c["cambio_secciones"]
+    assert c["prob_sobrecupo"] > 0.9            # 125 ya excede 2×50: el riesgo lo señala
+
+
+def test_secciones_siguen_la_demanda_por_secciones_completas():
+    def curso(cod, serie, abiertas, limite):
+        return [dict(anio=a, tipo="Clase", codigo=cod, curso=cod, escuela="E", area=None,
+                     asignados=v, abiertas=abiertas, cupo=abiertas * limite,
+                     limites=",".join([str(limite)] * abiertas)) for a, v in serie.items()]
+    filas = (curso("SUBE", {2022: 100, 2023: 200, 2024: 400, 2025: 800}, 16, 50)
+             + curso("BAJA", {2022: 1600, 2023: 1200, 2024: 1000, 2025: 800}, 16, 50)
+             + curso("ESTABLE", {2022: 100, 2023: 101, 2024: 99, 2025: 100}, 2, 50)
+             + [r for i in range(3) for r in curso(f"R{i}", {2022: 60, 2023: 61, 2024: 59, 2025: 60}, 1, 60)])
+    cursos = {c["codigo"]: c for c in P.predecir(filas)["cursos"]}
+    assert cursos["SUBE"]["cambio_secciones"] > 0
+    assert cursos["BAJA"]["prediccion"] < 800 - 50 and cursos["BAJA"]["cambio_secciones"] < 0
+    assert cursos["ESTABLE"]["cambio_secciones"] == 0       # sin cambio de una sección entera
+    for c in cursos.values():
+        assert c["secciones_sugeridas"] == c["secciones_actuales"] + int(
+            (c["prediccion"] - c["ultimo_valor"]) / c["cupo_por_seccion"]) or c["secciones_sugeridas"] == 1
 
 
 # ═══════════════════════════ integración: tipos de período y documento ═══════════════════════════
